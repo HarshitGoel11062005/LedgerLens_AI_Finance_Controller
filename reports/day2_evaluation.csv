@@ -1,0 +1,9 @@
+metric,value
+Total Transactions,2000.0
+Matched Transactions,1894.0
+Exceptions,106.0
+Match Rate,94.7
+Exception Rate,5.3
+Expected Settlement,22981731.29
+Actual Settlement,22359792.31
+Unexplained Amount,621938.98
