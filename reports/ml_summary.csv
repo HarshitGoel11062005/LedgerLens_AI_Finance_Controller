@@ -1,0 +1,6 @@
+metric,value
+Total Transactions,2000.0
+ML Anomalies,100.0
+Anomaly Percentage,5.0
+High Risk Cases,19.0
+Critical Risk Cases,14.0
