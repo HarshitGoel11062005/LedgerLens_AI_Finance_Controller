@@ -2,7 +2,12 @@
 import streamlit as st
 import pandas as pd
 import io
+import os
+from google import genai
 
+client = genai.Client(
+    api_key=st.secrets["GEMINI_API_KEY"]
+)
 st.set_page_config(
     page_title="LedgerLens",
     page_icon="💰",
@@ -83,6 +88,59 @@ if uploaded_file is not None:
                 extracted_text,
                 height=400
             )
+
+            st.subheader("🤖 AI Financial Investigation")
+
+    if st.button("Investigate Financial Data"):
+
+        investigation_prompt = f"""
+You are LedgerLens, an AI financial investigation assistant.
+
+Analyze ONLY the financial evidence provided below.
+
+Rules:
+1. Identify suspicious or abnormal financial activity.
+2. Explain the evidence clearly.
+3. Calculate or mention financial impact when supported by the evidence.
+4. Do not invent missing information.
+5. If evidence is insufficient, explicitly say so.
+6. Do not authorize or execute financial transactions.
+7. Recommendations are for human review only.
+8. Be concise and professional.
+
+Return the investigation using exactly:
+
+Finding:
+Evidence:
+Financial Impact:
+Possible Cause:
+Recommendation:
+Confidence:
+
+FINANCIAL EVIDENCE:
+{extracted_text}
+"""
+
+        with st.spinner("AI is investigating the financial data..."):
+
+            try:
+                response = client.models.generate_content(
+                    model="gemini-3.5-flash",
+                    contents=investigation_prompt
+                )
+
+                st.success("Investigation completed!")
+
+                st.subheader("📋 Investigation Report")
+
+                st.text_area(
+                    "LedgerLens AI Report",
+                    response.text,
+                    height=500
+                )
+
+            except Exception as e:
+                st.error(f"AI investigation failed: {e}")
 
         else:
             st.warning(
