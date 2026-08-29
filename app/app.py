@@ -93,7 +93,7 @@ if uploaded_file is not None:
 
         if st.button("Investigate Financial Data"):
 
-        investigation_prompt = f"""
+          investigation_prompt = f"""
 You are LedgerLens, an AI financial investigation assistant.
 
 Analyze ONLY the financial evidence provided below.
