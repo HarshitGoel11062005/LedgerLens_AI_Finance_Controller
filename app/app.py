@@ -1,18 +1,32 @@
-
 import streamlit as st
 import pandas as pd
-import io
-import os
+from pypdf import PdfReader
 from google import genai
 
-client = genai.Client(
-    api_key=st.secrets["GEMINI_API_KEY"]
-)
+
+# ==========================================
+# PAGE CONFIGURATION
+# ==========================================
+
 st.set_page_config(
     page_title="LedgerLens",
     page_icon="💰",
     layout="wide"
 )
+
+
+# ==========================================
+# GEMINI CLIENT
+# ==========================================
+
+client = genai.Client(
+    api_key=st.secrets["GEMINI_API_KEY"]
+)
+
+
+# ==========================================
+# HEADER
+# ==========================================
 
 st.title("LedgerLens")
 st.subheader("AI Finance Controller")
@@ -24,6 +38,11 @@ st.write(
 
 st.divider()
 
+
+# ==========================================
+# FILE UPLOAD
+# ==========================================
+
 st.header("📂 Upload Financial Data")
 
 uploaded_file = st.file_uploader(
@@ -31,24 +50,48 @@ uploaded_file = st.file_uploader(
     type=["csv", "pdf"]
 )
 
+
+# ==========================================
+# FILE PROCESSING
+# ==========================================
+
 if uploaded_file is not None:
 
     file_name = uploaded_file.name.lower()
 
+    # --------------------------------------
+    # CSV PROCESSING
+    # --------------------------------------
+
     if file_name.endswith(".csv"):
 
         try:
+
             df = pd.read_csv(uploaded_file)
 
             st.success("CSV uploaded successfully!")
 
             st.subheader("📊 Uploaded Data")
-            st.dataframe(df, use_container_width=True)
 
-            st.info(f"Rows: {len(df)} | Columns: {len(df.columns)}")
+            st.dataframe(
+                df,
+                use_container_width=True
+            )
+
+            st.info(
+                f"Rows: {len(df)} | Columns: {len(df.columns)}"
+            )
 
         except Exception as e:
-            st.error(f"Error reading CSV: {e}")
+
+            st.error(
+                f"Error reading CSV: {e}"
+            )
+
+
+    # --------------------------------------
+    # PDF PROCESSING
+    # --------------------------------------
 
     elif file_name.endswith(".pdf"):
 
@@ -56,44 +99,61 @@ if uploaded_file is not None:
 
         st.subheader("📄 PDF Information")
 
-        st.write("File name:", uploaded_file.name)
+        st.write(
+            f"File name: {uploaded_file.name}"
+        )
 
-from pypdf import PdfReader
+        # Extract PDF text
 
-if uploaded_file is not None:
-    st.success("PDF uploaded successfully!")
+        try:
 
-    st.subheader("📄 PDF Information")
-    st.write(f"File name: {uploaded_file.name}")
+            reader = PdfReader(uploaded_file)
 
-    # Extract text from PDF
-    try:
-        reader = PdfReader(uploaded_file)
+            extracted_text = ""
 
-        extracted_text = ""
+            for page in reader.pages:
 
-        for page in reader.pages:
-            text = page.extract_text()
+                text = page.extract_text()
 
-            if text:
-                extracted_text += text + "\n"
+                if text:
 
-        if extracted_text.strip():
-            st.success("PDF text extracted successfully!")
+                    extracted_text += text + "\n"
 
-            st.subheader("📑 Extracted Financial Data")
 
-            st.text_area(
-                "PDF Content",
-                extracted_text,
-                height=400
-            )
+            # ----------------------------------
+            # TEXT EXTRACTION RESULT
+            # ----------------------------------
 
-            st.subheader("🤖 AI Financial Investigation")
+            if extracted_text.strip():
 
-        if st.button("Investigate Financial Data"):
+                st.success(
+                    "PDF text extracted successfully!"
+                )
 
-          investigation_prompt = f"""
+                st.subheader(
+                    "📑 Extracted Financial Data"
+                )
+
+                st.text_area(
+                    "PDF Content",
+                    extracted_text,
+                    height=400
+                )
+
+
+                # ----------------------------------
+                # AI INVESTIGATION
+                # ----------------------------------
+
+                st.subheader(
+                    "🤖 AI Financial Investigation"
+                )
+
+                if st.button(
+                    "Investigate Financial Data"
+                ):
+
+                    investigation_prompt = f"""
 You are LedgerLens, an AI financial investigation assistant.
 
 Analyze ONLY the financial evidence provided below.
@@ -118,34 +178,54 @@ Recommendation:
 Confidence:
 
 FINANCIAL EVIDENCE:
+
 {extracted_text}
 """
 
-        with st.spinner("AI is investigating the financial data..."):
 
-            try:
-                response = client.models.generate_content(
-                    model="gemini-3.5-flash",
-                    contents=investigation_prompt
+                    with st.spinner(
+                        "AI is investigating the financial data..."
+                    ):
+
+                        try:
+
+                            response = client.models.generate_content(
+                                model="gemini-3.5-flash",
+                                contents=investigation_prompt
+                            )
+
+                            st.success(
+                                "Investigation completed!"
+                            )
+
+                            st.subheader(
+                                "📋 Investigation Report"
+                            )
+
+                            st.text_area(
+                                "LedgerLens AI Report",
+                                response.text,
+                                height=500
+                            )
+
+                        except Exception as e:
+
+                            st.error(
+                                f"AI investigation failed: {e}"
+                            )
+
+
+            else:
+
+                st.warning(
+                    "No readable text was found in this PDF."
                 )
 
-                st.success("Investigation completed!")
 
-                st.subheader("📋 Investigation Report")
+        except Exception as e:
 
-                st.text_area(
-                    "LedgerLens AI Report",
-                    response.text,
-                    height=500
-                )
-
-            except Exception as e:
-                st.error(f"AI investigation failed: {e}")
-
-        else:
-            st.warning(
-                "No readable text was found in this PDF."
+            st.error(
+                f"Error extracting PDF text: {e}"
             )
 
-    except Exception as e:
-        st.error(f"Error extracting PDF text: {e}")
+      
