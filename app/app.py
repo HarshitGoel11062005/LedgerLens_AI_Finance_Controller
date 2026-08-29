@@ -91,7 +91,7 @@ if uploaded_file is not None:
 
             st.subheader("🤖 AI Financial Investigation")
 
-    if st.button("Investigate Financial Data"):
+        if st.button("Investigate Financial Data"):
 
         investigation_prompt = f"""
 You are LedgerLens, an AI financial investigation assistant.
