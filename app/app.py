@@ -52,7 +52,42 @@ if uploaded_file is not None:
         st.subheader("📄 PDF Information")
 
         st.write("File name:", uploaded_file.name)
-        st.write(
-            "PDF upload is ready. Text extraction will be connected "
-            "in the next step."
-        )
+
+from pypdf import PdfReader
+
+if uploaded_file is not None:
+    st.success("PDF uploaded successfully!")
+
+    st.subheader("📄 PDF Information")
+    st.write(f"File name: {uploaded_file.name}")
+
+    # Extract text from PDF
+    try:
+        reader = PdfReader(uploaded_file)
+
+        extracted_text = ""
+
+        for page in reader.pages:
+            text = page.extract_text()
+
+            if text:
+                extracted_text += text + "\n"
+
+        if extracted_text.strip():
+            st.success("PDF text extracted successfully!")
+
+            st.subheader("📑 Extracted Financial Data")
+
+            st.text_area(
+                "PDF Content",
+                extracted_text,
+                height=400
+            )
+
+        else:
+            st.warning(
+                "No readable text was found in this PDF."
+            )
+
+    except Exception as e:
+        st.error(f"Error extracting PDF text: {e}")
