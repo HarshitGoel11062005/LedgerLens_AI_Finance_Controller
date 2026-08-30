@@ -91,9 +91,9 @@ if uploaded_file is not None:
             errors="coerce"
         )
 
-        # Calculate statistics
-        mean_amount = df["amount"].mean()
-        std_amount = df["amount"].std()
+            # Calculate statistics
+            mean_amount = df["amount"].mean()
+            std_amount = df["amount"].std()
 
         # Avoid division by zero
         if std_amount == 0 or pd.isna(std_amount):
