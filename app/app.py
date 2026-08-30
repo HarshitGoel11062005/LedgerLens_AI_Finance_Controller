@@ -81,9 +81,9 @@ if uploaded_file is not None:
             st.info(
                 f"Rows: {len(df)} | Columns: {len(df.columns)}"
             )
-                    st.divider()
+            st.divider()
 
-        st.subheader("🔍 Anomaly Detection")
+            st.subheader("🔍 Anomaly Detection")
 
         # Make sure amount is numeric
         df["amount"] = pd.to_numeric(
