@@ -81,6 +81,156 @@ if uploaded_file is not None:
             st.info(
                 f"Rows: {len(df)} | Columns: {len(df.columns)}"
             )
+                    st.divider()
+
+        st.subheader("🔍 Anomaly Detection")
+
+        # Make sure amount is numeric
+        df["amount"] = pd.to_numeric(
+            df["amount"],
+            errors="coerce"
+        )
+
+        # Calculate statistics
+        mean_amount = df["amount"].mean()
+        std_amount = df["amount"].std()
+
+        # Avoid division by zero
+        if std_amount == 0 or pd.isna(std_amount):
+
+            df["anomaly_score"] = 0
+
+        else:
+
+            df["anomaly_score"] = (
+                ((df["amount"] - mean_amount).abs()
+                 / std_amount) * 25
+            )
+
+            df["anomaly_score"] = df[
+                "anomaly_score"
+            ].clip(0, 100)
+
+
+        # Risk classification
+        def risk_level(score):
+
+            if score >= 75:
+                return "CRITICAL"
+
+            elif score >= 50:
+                return "HIGH"
+
+            elif score >= 25:
+                return "MEDIUM"
+
+            else:
+                return "LOW"
+
+
+        df["risk_level"] = df[
+            "anomaly_score"
+        ].apply(risk_level)
+
+
+        # --------------------------------
+        # DASHBOARD METRICS
+        # --------------------------------
+
+        total_transactions = len(df)
+
+        high_risk_count = len(
+            df[
+                df["risk_level"].isin(
+                    ["HIGH", "CRITICAL"]
+                )
+            ]
+        )
+
+        medium_risk_count = len(
+            df[
+                df["risk_level"] == "MEDIUM"
+            ]
+        )
+
+        low_risk_count = len(
+            df[
+                df["risk_level"] == "LOW"
+            ]
+        )
+
+
+        col1, col2, col3, col4 = st.columns(4)
+
+
+        col1.metric(
+            "Total Transactions",
+            total_transactions
+        )
+
+        col2.metric(
+            "🔴 High/Critical",
+            high_risk_count
+        )
+
+        col3.metric(
+            "🟠 Medium Risk",
+            medium_risk_count
+        )
+
+        col4.metric(
+            "🟢 Low Risk",
+            low_risk_count
+        )
+
+
+        # --------------------------------
+        # HIGH-RISK TRANSACTIONS
+        # --------------------------------
+
+        st.subheader(
+            "⚠️ High-Risk Transactions"
+        )
+
+        high_risk = df[
+            df["risk_level"].isin(
+                ["HIGH", "CRITICAL"]
+            )
+        ].sort_values(
+            "anomaly_score",
+            ascending=False
+        )
+
+
+        if len(high_risk) > 0:
+
+            display_columns = [
+                "transaction_id",
+                "order_id",
+                "customer_id",
+                "amount",
+                "payment_date",
+                "payment_status",
+                "anomaly_score",
+                "risk_level"
+            ]
+
+            # Only display columns that actually exist
+            display_columns = [
+                col for col in display_columns
+                if col in high_risk.columns
+            ]
+
+            st.dataframe(
+                high_risk[display_columns],
+                use_container_width=True
+            )
+
+        else:
+
+            st.success(
+                "No high-risk transactions detected."
+            )
 
         except Exception as e:
 
