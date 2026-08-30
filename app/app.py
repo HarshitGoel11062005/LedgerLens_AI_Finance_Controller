@@ -85,8 +85,8 @@ if uploaded_file is not None:
 
             st.subheader("🔍 Anomaly Detection")
 
-        # Make sure amount is numeric
-        df["amount"] = pd.to_numeric(
+            # Make sure amount is numeric
+            df["amount"] = pd.to_numeric(
             df["amount"],
             errors="coerce"
         )
