@@ -1,13 +1,16 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import io
+import re
+
 from pypdf import PdfReader
 from google import genai
 
 
-# ============================================================
-# PAGE CONFIG
-# ============================================================
+# =========================================================
+# PAGE CONFIGURATION
+# =========================================================
 
 st.set_page_config(
     page_title="LedgerLens | AI Finance Controller",
@@ -17,404 +20,325 @@ st.set_page_config(
 )
 
 
-# ============================================================
-# GEMINI CLIENT
-# ============================================================
+# =========================================================
+# GEMINI CONNECTION
+# =========================================================
 
 try:
+    api_key = st.secrets["GEMINI_API_KEY"]
+
     client = genai.Client(
-        api_key=st.secrets["GEMINI_API_KEY"]
+        api_key=api_key
     )
-    AI_CONNECTED = True
+
+    gemini_available = True
+
 except Exception:
     client = None
-    AI_CONNECTED = False
+    gemini_available = False
 
 
-# ============================================================
-# CUSTOM CSS
-# ============================================================
+# =========================================================
+# SESSION STATE
+# =========================================================
 
-st.markdown(
-    """
-    <style>
+if "processed_files" not in st.session_state:
+    st.session_state.processed_files = {}
 
-    /* Main background */
-    .stApp {
-        background-color: #f5f7fb;
-    }
+if "selected_dataset" not in st.session_state:
+    st.session_state.selected_dataset = None
 
-    /* Sidebar */
-    section[data-testid="stSidebar"] {
-        background-color: #101827;
-    }
-
-    section[data-testid="stSidebar"] * {
-        color: #f8fafc;
-    }
-
-    /* Sidebar title */
-    .sidebar-title {
-        font-size: 28px;
-        font-weight: 800;
-        margin-bottom: 4px;
-    }
-
-    .sidebar-subtitle {
-        font-size: 13px;
-        color: #94a3b8 !important;
-        margin-bottom: 25px;
-    }
-
-    .sidebar-section {
-        font-size: 12px;
-        font-weight: 700;
-        color: #94a3b8 !important;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-top: 22px;
-        margin-bottom: 8px;
-    }
-
-    .ai-connected {
-        background-color: #0f302f;
-        border: 1px solid #155e59;
-        padding: 12px;
-        border-radius: 10px;
-        margin-top: 12px;
-        margin-bottom: 15px;
-    }
-
-    .ai-dot {
-        color: #22c55e;
-        font-size: 14px;
-    }
-
-    /* Main header */
-    .main-title {
-        font-size: 42px;
-        font-weight: 800;
-        color: #17233c;
-        margin-bottom: 0;
-    }
-
-    .main-subtitle {
-        color: #64748b;
-        font-size: 17px;
-        margin-top: 4px;
-    }
-
-    /* KPI */
-    div[data-testid="stMetric"] {
-        background-color: white;
-        border: 1px solid #e2e8f0;
-        padding: 18px;
-        border-radius: 14px;
-        box-shadow: 0 3px 12px rgba(15, 23, 42, 0.05);
-    }
-
-    /* Buttons */
-    .stButton > button {
-        border-radius: 9px;
-        font-weight: 600;
-    }
-
-    /* Section cards */
-    .section-card {
-        background: white;
-        padding: 22px;
-        border-radius: 15px;
-        border: 1px solid #e2e8f0;
-        margin-bottom: 20px;
-    }
-
-    .risk-critical {
-        color: #dc2626;
-        font-weight: 700;
-    }
-
-    .risk-high {
-        color: #ea580c;
-        font-weight: 700;
-    }
-
-    .risk-medium {
-        color: #ca8a04;
-        font-weight: 700;
-    }
-
-    .risk-low {
-        color: #16a34a;
-        font-weight: 700;
-    }
-
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+if "selected_transaction" not in st.session_state:
+    st.session_state.selected_transaction = None
 
 
-# ============================================================
+# =========================================================
 # SIDEBAR
-# ============================================================
+# =========================================================
 
 with st.sidebar:
 
-    st.markdown(
-        '<div class="sidebar-title">💰 LedgerLens</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        '<div class="sidebar-subtitle">'
-        'AI Finance Controller'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown("---")
-
-    # --------------------------------------------------------
-    # 1. LEDGERLENS
-    # --------------------------------------------------------
-
-    st.markdown(
-        '<div class="sidebar-section">01 · Platform</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown("### 🏦 LedgerLens")
+    st.title("💰 LedgerLens")
 
     st.caption(
-        "AI-powered financial risk intelligence "
-        "and investigation platform."
+        "AI Finance Controller"
     )
 
+    st.divider()
 
-    # --------------------------------------------------------
-    # 2. DATA UPLOAD
-    # --------------------------------------------------------
+    st.subheader("Navigation")
 
-    st.markdown(
-        '<div class="sidebar-section">02 · Input</div>',
-        unsafe_allow_html=True
+    page = st.radio(
+        "Go to",
+        [
+            "📊 Dashboard",
+            "📂 Data Upload",
+            "🔎 Transaction Explorer",
+            "🤖 AI Investigation"
+        ],
+        label_visibility="collapsed"
     )
 
-    st.markdown("### 📂 Data Upload")
+    st.divider()
 
-    st.caption(
-        "Upload CSV or PDF financial data."
-    )
+    st.subheader("System Status")
 
-
-    # --------------------------------------------------------
-    # 3. AI INVESTIGATION
-    # --------------------------------------------------------
-
-    st.markdown(
-        '<div class="sidebar-section">03 · Intelligence</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown("### 🤖 AI Investigation")
-
-    st.caption(
-        "Investigate suspicious financial activity."
-    )
-
-
-    # --------------------------------------------------------
-    # 4. AI ENGINE
-    # --------------------------------------------------------
-
-    st.markdown(
-        '<div class="ai-connected">',
-        unsafe_allow_html=True
-    )
-
-    if AI_CONNECTED:
-
-        st.markdown(
-            '<span class="ai-dot">●</span> '
-            '<b>AI Engine Connected</b>',
-            unsafe_allow_html=True
+    if gemini_available:
+        st.success(
+            "🟢 Gemini AI Connected"
         )
-
     else:
-
-        st.markdown(
-            "⚠️ AI Engine Not Connected"
+        st.warning(
+            "🟡 Gemini AI Not Configured"
         )
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container(border=True):
 
+        st.markdown("### ⚙️ LedgerLens Engine")
 
-    # --------------------------------------------------------
-    # 5. FINANCIAL RISK
-    # --------------------------------------------------------
+        st.caption(
+            "Financial data processing"
+        )
 
-    st.markdown(
-        '<div class="sidebar-section">04 · Risk Intelligence</div>',
-        unsafe_allow_html=True
-    )
+        st.caption(
+            "Anomaly detection"
+        )
 
-    st.markdown("### 📊 Financial Risk")
+        st.caption(
+            "Risk classification"
+        )
 
-    st.caption(
-        "Overall financial risk overview."
-    )
+        st.caption(
+            "Transaction investigation"
+        )
 
+        st.caption(
+            "AI explanations"
+        )
 
-    # --------------------------------------------------------
-    # 6. RISK TRANSACTIONS
-    # --------------------------------------------------------
+    st.divider()
 
-    st.markdown("### 🚨 Risk Transactions")
+    st.subheader("Capabilities")
 
-    st.caption(
-        "Transactions requiring attention."
-    )
+    st.caption("📊 Financial risk dashboard")
+    st.caption("🚨 High-risk detection")
+    st.caption("🔎 Transaction investigation")
+    st.caption("🤖 AI-powered explanations")
+    st.caption("📄 PDF financial extraction")
+    st.caption("📥 CSV export")
 
-
-    # --------------------------------------------------------
-    # 7. ANOMALY DETECTION
-    # --------------------------------------------------------
-
-    st.markdown("### 🔍 Anomaly Detection")
-
-    st.caption(
-        "Identify unusual transaction behavior."
-    )
-
-
-    # --------------------------------------------------------
-    # 8. SINGLE TRANSACTION
-    # --------------------------------------------------------
-
-    st.markdown("### 🔎 Single Transaction")
+    st.divider()
 
     st.caption(
-        "Investigate one transaction with AI."
+        "LedgerLens v2.0"
     )
 
 
-    # --------------------------------------------------------
-    # 9. HIGH RISK
-    # --------------------------------------------------------
+# =========================================================
+# HERO SECTION
+# =========================================================
 
-    st.markdown("### 🔴 High-Risk Transactions")
+st.title("💰 LedgerLens")
 
-    st.caption(
-        "Review high and critical risk activity."
-    )
-
-
-    # --------------------------------------------------------
-    # 10. ABOUT
-    # --------------------------------------------------------
-
-    st.markdown(
-        '<div class="sidebar-section">05 · Information</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown("### ℹ️ About LedgerLens")
-
-    st.caption(
-        "Financial anomaly detection, "
-        "risk scoring and AI investigation."
-    )
-
-    st.markdown("---")
-
-    st.caption("LedgerLens v2.0")
-    st.caption("Human review required for recommendations.")
-
-
-# ============================================================
-# MAIN HEADER
-# ============================================================
-
-st.markdown(
-    '<div class="main-title">Financial Risk Dashboard</div>',
-    unsafe_allow_html=True
+st.subheader(
+    "AI-powered financial risk intelligence and investigation platform"
 )
 
-st.markdown(
-    '<div class="main-subtitle">'
-    'AI-powered financial anomaly detection and investigation'
-    '</div>',
-    unsafe_allow_html=True
+st.caption(
+    "Automated Risk Detection • Financial Analytics • "
+    "Transaction Investigation • AI Explanations"
 )
 
 st.divider()
 
 
-# ============================================================
-# FILE UPLOAD
-# ============================================================
+# =========================================================
+# DATASET DETECTION
+# =========================================================
 
-st.header("📂 Upload Financial Data")
+def detect_dataset_type(df):
 
-uploaded_file = st.file_uploader(
-    "Upload your financial dataset",
-    type=["csv", "pdf"],
-    help="LedgerLens automatically analyzes the uploaded financial data."
-)
+    columns = [
+        str(col)
+        .strip()
+        .lower()
+        .replace(" ", "_")
+        .replace("-", "_")
+        for col in df.columns
+    ]
+
+    text = " ".join(columns)
+
+    if any(
+        x in text
+        for x in [
+            "transaction_id",
+            "payment_id",
+            "order_id"
+        ]
+    ):
+        return "Transactions"
+
+    if any(
+        x in text
+        for x in [
+            "refund_id",
+            "refund_amount",
+            "refund_date"
+        ]
+    ):
+        return "Refunds"
+
+    if any(
+        x in text
+        for x in [
+            "fee_amount",
+            "processing_fee",
+            "fee_id"
+        ]
+    ):
+        return "Fees"
+
+    if any(
+        x in text
+        for x in [
+            "settlement_id",
+            "settlement_amount",
+            "settlement_date"
+        ]
+    ):
+        return "Settlements"
+
+    return "Financial Data"
 
 
-# ============================================================
-# HELPER FUNCTIONS
-# ============================================================
+# =========================================================
+# NORMALIZE COLUMNS
+# =========================================================
 
-def calculate_risk(df):
+def normalize_columns(df):
 
     df = df.copy()
 
-    # Find amount column automatically
-    amount_column = None
-
-    possible_amount_columns = [
-        "amount",
-        "amount_inr",
-        "transaction_amount",
-        "value",
-        "total_amount"
+    df.columns = [
+        str(col)
+        .strip()
+        .lower()
+        .replace(" ", "_")
+        .replace("-", "_")
+        for col in df.columns
     ]
 
-    for column in possible_amount_columns:
+    return df
+
+
+# =========================================================
+# FIND AMOUNT COLUMN
+# =========================================================
+
+def find_amount_column(df):
+
+    priority = [
+        "amount",
+        "transaction_amount",
+        "payment_amount",
+        "refund_amount",
+        "fee_amount",
+        "settlement_amount",
+        "total_amount",
+        "amount_inr",
+        "value"
+    ]
+
+    for column in priority:
 
         if column in df.columns:
-            amount_column = column
-            break
+            return column
+
+    for column in df.columns:
+
+        if (
+            "amount" in column
+            or "value" in column
+        ):
+            return column
+
+    return None
+
+
+# =========================================================
+# ANOMALY ANALYSIS
+# =========================================================
+
+def analyze_financial_data(df):
+
+    df = normalize_columns(df)
+
+    amount_column = find_amount_column(df)
 
     if amount_column is None:
-        return df, None
+
+        return (
+            None,
+            "No financial amount column could be identified."
+        )
 
     df[amount_column] = pd.to_numeric(
         df[amount_column],
         errors="coerce"
     )
 
-    mean_amount = df[amount_column].mean()
-    std_amount = df[amount_column].std()
+    valid_df = df.dropna(
+        subset=[amount_column]
+    ).copy()
 
-    if std_amount == 0 or pd.isna(std_amount):
+    if len(valid_df) == 0:
 
-        df["anomaly_score"] = 0
+        return (
+            None,
+            "No valid financial amounts were found."
+        )
+
+    mean_amount = valid_df[
+        amount_column
+    ].mean()
+
+    std_amount = valid_df[
+        amount_column
+    ].std()
+
+    # -----------------------------------------------------
+    # ANOMALY SCORE
+    # -----------------------------------------------------
+
+    if (
+        std_amount == 0
+        or pd.isna(std_amount)
+    ):
+
+        valid_df["anomaly_score"] = 0.0
 
     else:
 
-        df["anomaly_score"] = (
+        valid_df["anomaly_score"] = (
             (
-                (df[amount_column] - mean_amount).abs()
+                (
+                    valid_df[amount_column]
+                    - mean_amount
+                ).abs()
                 / std_amount
-            ) * 25
+            )
+            * 25
         )
 
-        df["anomaly_score"] = df[
-            "anomaly_score"
-        ].clip(0, 100)
+        valid_df["anomaly_score"] = (
+            valid_df["anomaly_score"]
+            .clip(0, 100)
+        )
+
+    # -----------------------------------------------------
+    # RISK CLASSIFICATION
+    # -----------------------------------------------------
 
     def risk_level(score):
 
@@ -429,20 +353,25 @@ def calculate_risk(df):
 
         return "LOW"
 
-    df["risk_level"] = df[
-        "anomaly_score"
-    ].apply(risk_level)
+    valid_df["risk_level"] = (
+        valid_df["anomaly_score"]
+        .apply(risk_level)
+    )
 
-    return df, amount_column
+    return valid_df, None
 
 
-# ============================================================
-# PDF EXTRACTION
-# ============================================================
+# =========================================================
+# PDF TEXT EXTRACTION
+# =========================================================
 
-def extract_pdf_text(file):
+def extract_pdf_text(uploaded_file):
 
-    reader = PdfReader(file)
+    uploaded_file.seek(0)
+
+    reader = PdfReader(
+        uploaded_file
+    )
 
     text = ""
 
@@ -451,643 +380,1370 @@ def extract_pdf_text(file):
         page_text = page.extract_text()
 
         if page_text:
+
             text += page_text + "\n"
 
     return text
 
 
-# ============================================================
-# PROCESS FILE
-# ============================================================
+# =========================================================
+# PDF TABLE CONVERSION
+# =========================================================
 
-if uploaded_file is not None:
+def pdf_text_to_dataframe(text):
 
-    file_name = uploaded_file.name.lower()
+    lines = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip()
+    ]
 
+    if len(lines) < 2:
+        return None
 
-    # ========================================================
-    # CSV
-    # ========================================================
+    # =====================================================
+    # PIPE TABLE
+    # =====================================================
 
-    if file_name.endswith(".csv"):
+    pipe_lines = [
+        line
+        for line in lines
+        if "|" in line
+    ]
+
+    if len(pipe_lines) >= 2:
+
+        rows = []
+
+        for line in pipe_lines:
+
+            parts = [
+                part.strip()
+                for part in line.split("|")
+            ]
+
+            if len(parts) >= 2:
+                rows.append(parts)
+
+        if len(rows) >= 2:
+
+            header = rows[0]
+
+            data_rows = rows[1:]
+
+            if data_rows:
+
+                first_row = data_rows[0]
+
+                if all(
+                    re.fullmatch(
+                        r"[-: ]+",
+                        item or ""
+                    )
+                    for item in first_row
+                ):
+
+                    data_rows = data_rows[1:]
+
+            width = len(header)
+
+            cleaned_rows = [
+
+                row[:width]
+                + [""] * max(
+                    0,
+                    width - len(row)
+                )
+
+                for row in data_rows
+            ]
+
+            if cleaned_rows:
+
+                return pd.DataFrame(
+                    cleaned_rows,
+                    columns=header
+                )
+
+    # =====================================================
+    # COMMA TABLE
+    # =====================================================
+
+    comma_lines = [
+        line
+        for line in lines
+        if "," in line
+    ]
+
+    if len(comma_lines) >= 2:
 
         try:
 
-            df = pd.read_csv(uploaded_file)
-
-            st.success(
-                f"✅ {uploaded_file.name} uploaded successfully"
+            csv_text = "\n".join(
+                comma_lines
             )
 
-            df, amount_column = calculate_risk(df)
+            df = pd.read_csv(
+                io.StringIO(csv_text)
+            )
 
-            if amount_column is None:
+            if len(df.columns) >= 2:
 
-                st.warning(
-                    "No amount column was detected. "
-                    "Dashboard risk scoring requires a financial amount column."
+                return df
+
+        except Exception:
+            pass
+
+    # =====================================================
+    # WHITESPACE TABLE
+    # =====================================================
+
+    rows = []
+
+    for line in lines:
+
+        parts = re.split(
+            r"\s{2,}",
+            line
+        )
+
+        if len(parts) >= 2:
+
+            rows.append(parts)
+
+    if len(rows) >= 3:
+
+        header = rows[0]
+
+        data_rows = rows[1:]
+
+        width = len(header)
+
+        cleaned_rows = [
+
+            row[:width]
+            + [""] * max(
+                0,
+                width - len(row)
+            )
+
+            for row in data_rows
+        ]
+
+        return pd.DataFrame(
+            cleaned_rows,
+            columns=header
+        )
+
+    return None
+
+
+# =========================================================
+# DASHBOARD
+# =========================================================
+
+def display_dashboard(
+    df,
+    dataset_name="Financial Data"
+):
+
+    analyzed_df, error = (
+        analyze_financial_data(df)
+    )
+
+    if error:
+
+        st.warning(error)
+
+        st.dataframe(
+            df,
+            use_container_width=True
+        )
+
+        return analyzed_df
+
+    # =====================================================
+    # DASHBOARD HEADER
+    # =====================================================
+
+    with st.container(border=True):
+
+        st.header(
+            "📊 Financial Risk Dashboard"
+        )
+
+        st.caption(
+            f"Dataset detected as: {dataset_name}"
+        )
+
+    # =====================================================
+    # METRICS
+    # =====================================================
+
+    total_records = len(
+        analyzed_df
+    )
+
+    critical_count = len(
+        analyzed_df[
+            analyzed_df["risk_level"]
+            == "CRITICAL"
+        ]
+    )
+
+    high_count = len(
+        analyzed_df[
+            analyzed_df["risk_level"]
+            == "HIGH"
+        ]
+    )
+
+    medium_count = len(
+        analyzed_df[
+            analyzed_df["risk_level"]
+            == "MEDIUM"
+        ]
+    )
+
+    low_count = len(
+        analyzed_df[
+            analyzed_df["risk_level"]
+            == "LOW"
+        ]
+    )
+
+    high_critical_count = (
+        critical_count
+        + high_count
+    )
+
+    amount_column = find_amount_column(
+        analyzed_df
+    )
+
+    total_amount = (
+        analyzed_df[amount_column].sum()
+        if amount_column
+        else 0
+    )
+
+    # =====================================================
+    # KPI ROW 1
+    # =====================================================
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    with c1:
+
+        st.metric(
+            "TOTAL RECORDS",
+            f"{total_records:,}",
+            help="Total financial records analyzed."
+        )
+
+    with c2:
+
+        st.metric(
+            "🔴 HIGH / CRITICAL",
+            f"{high_critical_count:,}",
+            help="Records requiring human review."
+        )
+
+    with c3:
+
+        st.metric(
+            "🟠 MEDIUM RISK",
+            f"{medium_count:,}",
+            help="Records requiring additional attention."
+        )
+
+    with c4:
+
+        st.metric(
+            "🟢 LOW RISK",
+            f"{low_count:,}",
+            help="Records with no major detected anomaly."
+        )
+
+    st.write("")
+
+    # =====================================================
+    # KPI ROW 2
+    # =====================================================
+
+    with st.container(border=True):
+
+        st.subheader(
+            "💰 Financial Overview"
+        )
+
+        a1, a2, a3, a4 = st.columns(4)
+
+        with a1:
+
+            st.metric(
+                "Total Amount",
+                f"{total_amount:,.2f}"
+            )
+
+        with a2:
+
+            st.metric(
+                "Average Amount",
+                (
+                    f"{analyzed_df[amount_column].mean():,.2f}"
+                    if amount_column
+                    else "N/A"
                 )
+            )
 
-            # ------------------------------------------------
-            # DATASET INFORMATION
-            # ------------------------------------------------
+        with a3:
+
+            st.metric(
+                "Maximum Amount",
+                (
+                    f"{analyzed_df[amount_column].max():,.2f}"
+                    if amount_column
+                    else "N/A"
+                )
+            )
+
+        with a4:
+
+            st.metric(
+                "Critical Records",
+                f"{critical_count:,}"
+            )
+
+    st.write("")
+
+    # =====================================================
+    # RISK DISTRIBUTION
+    # =====================================================
+
+    left, right = st.columns(2)
+
+    with left:
+
+        with st.container(border=True):
+
+            st.subheader(
+                "🎯 Risk Distribution"
+            )
 
             st.caption(
-                f"Dataset: {uploaded_file.name}"
+                "Distribution of financial risk levels."
             )
 
-            st.divider()
+            risk_chart = pd.DataFrame(
+                {
+                    "Risk Level": [
+                        "Critical",
+                        "High",
+                        "Medium",
+                        "Low"
+                    ],
 
-            # ------------------------------------------------
-            # KPI DASHBOARD
-            # ------------------------------------------------
-
-            st.header("📊 Financial Risk Overview")
-
-            total_records = len(df)
-
-            high_count = len(
-                df[
-                    df["risk_level"].isin(
-                        ["HIGH", "CRITICAL"]
-                    )
-                ]
+                    "Records": [
+                        critical_count,
+                        high_count,
+                        medium_count,
+                        low_count
+                    ]
+                }
             )
 
-            medium_count = len(
-                df[
-                    df["risk_level"] == "MEDIUM"
-                ]
-            )
-
-            low_count = len(
-                df[
-                    df["risk_level"] == "LOW"
-                ]
-            )
-
-            critical_count = len(
-                df[
-                    df["risk_level"] == "CRITICAL"
-                ]
-            )
-
-
-            col1, col2, col3, col4 = st.columns(4)
-
-            col1.metric(
-                "Total Records",
-                total_records
-            )
-
-            col2.metric(
-                "🔴 High / Critical",
-                high_count
-            )
-
-            col3.metric(
-                "🟠 Medium Risk",
-                medium_count
-            )
-
-            col4.metric(
-                "🟢 Low Risk",
-                low_count
-            )
-
-
-            # ------------------------------------------------
-            # RISK DISTRIBUTION
-            # ------------------------------------------------
-
-            st.divider()
-
-            st.header("🎯 Risk Distribution")
-
-            risk_counts = pd.Series({
-                "Critical": len(
-                    df[df["risk_level"] == "CRITICAL"]
+            st.bar_chart(
+                risk_chart.set_index(
+                    "Risk Level"
                 ),
-                "High": len(
-                    df[df["risk_level"] == "HIGH"]
-                ),
-                "Medium": medium_count,
-                "Low": low_count
-            })
+                use_container_width=True
+            )
 
-            st.bar_chart(risk_counts)
+    # =====================================================
+    # FINANCIAL OVERVIEW CHART
+    # =====================================================
 
+    with right:
 
-            # ------------------------------------------------
-            # FINANCIAL OVERVIEW
-            # ------------------------------------------------
+        with st.container(border=True):
 
-            st.header("💰 Financial Overview")
+            st.subheader(
+                "💰 Amount Overview"
+            )
+
+            st.caption(
+                "Financial amount across analyzed records."
+            )
 
             if amount_column:
 
-                total_amount = df[
-                    amount_column
-                ].sum()
-
-                average_amount = df[
-                    amount_column
-                ].mean()
-
-                maximum_amount = df[
-                    amount_column
-                ].max()
-
-                c1, c2, c3 = st.columns(3)
-
-                c1.metric(
-                    "Total Financial Value",
-                    f"₹{total_amount:,.2f}"
+                amount_chart = (
+                    analyzed_df[
+                        [amount_column]
+                    ]
+                    .reset_index(drop=True)
                 )
 
-                c2.metric(
-                    "Average Transaction",
-                    f"₹{average_amount:,.2f}"
+                amount_chart.columns = [
+                    "Amount"
+                ]
+
+                st.line_chart(
+                    amount_chart,
+                    use_container_width=True
                 )
 
-                c3.metric(
-                    "Largest Transaction",
-                    f"₹{maximum_amount:,.2f}"
+            else:
+
+                st.info(
+                    "No amount column available."
                 )
 
+    st.write("")
 
-            # ------------------------------------------------
-            # COMPLETE DATA
-            # ------------------------------------------------
+    # =====================================================
+    # ANOMALY SCORE DISTRIBUTION
+    # =====================================================
 
-            st.divider()
+    with st.container(border=True):
 
-            st.header("📋 Financial Data Analysis")
+        st.subheader(
+            "📊 Anomaly Score Distribution"
+        )
+
+        st.caption(
+            "Higher scores indicate stronger deviation "
+            "from normal financial activity."
+        )
+
+        score_chart = pd.DataFrame(
+            {
+                "Anomaly Score":
+                    analyzed_df[
+                        "anomaly_score"
+                    ]
+            }
+        )
+
+        st.area_chart(
+            score_chart,
+            use_container_width=True
+        )
+
+    st.write("")
+
+    # =====================================================
+    # FINANCIAL DATA
+    # =====================================================
+
+    with st.container(border=True):
+
+        st.subheader(
+            "📋 Financial Data Analysis"
+        )
+
+        st.caption(
+            "Complete processed financial dataset."
+        )
+
+        st.dataframe(
+            analyzed_df,
+            use_container_width=True,
+            height=420
+        )
+
+    st.write("")
+
+    # =====================================================
+    # HIGH-RISK RECORDS
+    # =====================================================
+
+    high_risk = (
+        analyzed_df[
+            analyzed_df["risk_level"]
+            .isin(
+                ["HIGH", "CRITICAL"]
+            )
+        ]
+        .sort_values(
+            "anomaly_score",
+            ascending=False
+        )
+    )
+
+    with st.container(border=True):
+
+        st.subheader(
+            "🚨 High-Risk Records"
+        )
+
+        st.caption(
+            "Transactions requiring the highest level "
+            "of human review."
+        )
+
+        if len(high_risk) > 0:
+
+            st.warning(
+                f"{len(high_risk)} high/critical "
+                "record(s) detected."
+            )
 
             st.dataframe(
-                df,
-                use_container_width=True,
-                height=420
-            )
-
-
-            # =================================================
-            # ANOMALY DETECTION
-            # =================================================
-
-            st.divider()
-
-            st.header("🔍 Anomaly Detection")
-
-            st.write(
-                "LedgerLens identifies transactions whose "
-                "financial values significantly differ from "
-                "the normal transaction pattern."
-            )
-
-            anomaly_df = df.sort_values(
-                "anomaly_score",
-                ascending=False
-            )
-
-            st.dataframe(
-                anomaly_df,
+                high_risk,
                 use_container_width=True,
                 height=350
             )
 
+        else:
 
-            # =================================================
-            # HIGH RISK TRANSACTIONS
-            # =================================================
+            st.success(
+                "No high-risk financial records detected."
+            )
 
-            st.divider()
+    st.write("")
 
-            st.header("🚨 High-Risk Transactions")
+    # =====================================================
+    # DOWNLOAD
+    # =====================================================
 
-            high_risk_df = df[
-                df["risk_level"].isin(
-                    ["HIGH", "CRITICAL"]
+    with st.container(border=True):
+
+        st.subheader(
+            "📥 Export Analysis"
+        )
+
+        st.caption(
+            "Download the processed financial dataset."
+        )
+
+        csv_data = analyzed_df.to_csv(
+            index=False
+        )
+
+        st.download_button(
+            "⬇️ Download Processed CSV",
+            data=csv_data,
+            file_name=(
+                "LedgerLens_Processed_Data.csv"
+            ),
+            mime="text/csv"
+        )
+
+    return analyzed_df
+
+
+# =========================================================
+# TRANSACTION EXPLORER
+# =========================================================
+
+def transaction_explorer(df):
+
+    analyzed_df, error = (
+        analyze_financial_data(df)
+    )
+
+    if error:
+
+        st.error(error)
+
+        return
+
+    st.header(
+        "🔎 Transaction Explorer"
+    )
+
+    st.caption(
+        "Search and examine individual financial "
+        "records separately."
+    )
+
+    # =====================================================
+    # SEARCH
+    # =====================================================
+
+    search_text = st.text_input(
+        "🔍 Search transaction",
+        placeholder=(
+            "Search transaction ID, customer ID, "
+            "order ID..."
+        )
+    )
+
+    filtered_df = analyzed_df.copy()
+
+    if search_text:
+
+        mask = (
+            filtered_df
+            .astype(str)
+            .apply(
+                lambda row:
+                row.str.contains(
+                    search_text,
+                    case=False,
+                    na=False
+                ).any(),
+                axis=1
+            )
+        )
+
+        filtered_df = (
+            filtered_df[mask]
+        )
+
+    if len(filtered_df) == 0:
+
+        st.warning(
+            "No matching transaction found."
+        )
+
+        return
+
+    # =====================================================
+    # CREATE RECORD OPTIONS
+    # =====================================================
+
+    display_options = []
+
+    for index, row in filtered_df.iterrows():
+
+        transaction_id = None
+
+        for column in [
+            "transaction_id",
+            "payment_id",
+            "order_id",
+            "refund_id",
+            "settlement_id"
+        ]:
+
+            if column in row.index:
+
+                transaction_id = (
+                    str(row[column])
                 )
-            ].sort_values(
-                "anomaly_score",
-                ascending=False
+
+                break
+
+        if transaction_id is None:
+
+            transaction_id = (
+                f"Record {index}"
             )
 
-            if len(high_risk_df) > 0:
+        display_options.append(
+            (index, transaction_id)
+        )
 
-                st.warning(
-                    f"{len(high_risk_df)} transaction(s) "
-                    "require human review."
-                )
+    # =====================================================
+    # SELECT RECORD
+    # =====================================================
 
-                st.dataframe(
-                    high_risk_df,
-                    use_container_width=True,
-                    height=350
-                )
+    selected_label = st.selectbox(
+        "Select a financial record",
+        [
+            label
+            for _, label
+            in display_options
+        ]
+    )
 
-            else:
+    selected_index = next(
+        index
+        for index, label
+        in display_options
+        if label == selected_label
+    )
 
-                st.success(
-                    "No high-risk transactions detected."
-                )
+    selected = analyzed_df.loc[
+        selected_index
+    ]
 
+    st.divider()
 
-            # =================================================
-            # SINGLE TRANSACTION INVESTIGATION
-            # =================================================
+    # =====================================================
+    # RISK STATUS
+    # =====================================================
 
-            st.divider()
+    risk = selected[
+        "risk_level"
+    ]
 
-            st.header(
-                "🔎 Single Transaction Investigation"
-            )
+    score = selected[
+        "anomaly_score"
+    ]
 
-            st.write(
-                "Select one transaction and ask LedgerLens "
-                "AI to investigate it separately."
-            )
+    if risk == "CRITICAL":
 
-            transaction_options = list(
-                range(len(df))
-            )
+        st.error(
+            f"🔴 CRITICAL RISK • "
+            f"Anomaly Score: {score:.2f}"
+        )
 
-            selected_index = st.selectbox(
-                "Select transaction",
-                transaction_options
-            )
+    elif risk == "HIGH":
 
-            selected_transaction = df.iloc[
-                selected_index
+        st.warning(
+            f"🟠 HIGH RISK • "
+            f"Anomaly Score: {score:.2f}"
+        )
+
+    elif risk == "MEDIUM":
+
+        st.warning(
+            f"🟡 MEDIUM RISK • "
+            f"Anomaly Score: {score:.2f}"
+        )
+
+    else:
+
+        st.success(
+            f"🟢 LOW RISK • "
+            f"Anomaly Score: {score:.2f}"
+        )
+
+    # =====================================================
+    # RECORD SUMMARY
+    # =====================================================
+
+    with st.container(border=True):
+
+        st.subheader(
+            "📄 Record Details"
+        )
+
+        details = pd.DataFrame(
+            {
+                "Field":
+                    selected.index,
+
+                "Value":
+                    [
+                        str(value)
+                        for value
+                        in selected.values
+                    ]
+            }
+        )
+
+        st.dataframe(
+            details,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    # =====================================================
+    # AI INVESTIGATION
+    # =====================================================
+
+    st.subheader(
+        "🤖 AI Investigation"
+    )
+
+    if not gemini_available:
+
+        st.info(
+            "Gemini AI is not configured. "
+            "Add GEMINI_API_KEY to Streamlit Secrets "
+            "to enable AI investigation."
+        )
+
+        return
+
+    investigate = st.button(
+        "🔎 Investigate This Record",
+        type="primary"
+    )
+
+    if investigate:
+
+        evidence = "\n".join(
+            [
+                f"{column}: {value}"
+                for column, value
+                in selected.items()
             ]
+        )
 
-            st.dataframe(
-                selected_transaction.to_frame(
-                    "Value"
-                ),
-                use_container_width=True
-            )
+        prompt = f"""
+You are LedgerLens, an AI financial investigation assistant.
 
-
-            if st.button(
-                "🔎 Investigate Selected Transaction",
-                use_container_width=True
-            ):
-
-                if not AI_CONNECTED:
-
-                    st.error(
-                        "Gemini AI is not connected."
-                    )
-
-                else:
-
-                    transaction_text = (
-                        selected_transaction
-                        .to_string()
-                    )
-
-                    single_prompt = f"""
-You are LedgerLens, an AI financial
-investigation assistant.
-
-Investigate ONLY the transaction below.
-
-Transaction:
-{transaction_text}
-
-Provide:
-
-1. Risk Assessment
-2. Suspicious Indicators
-3. Financial Evidence
-4. Possible Cause
-5. Recommended Human Review
-6. Confidence
-
-Do not invent information.
-Do not authorize transactions.
-Recommendations are for human review only.
-"""
-
-                    with st.spinner(
-                        "🤖 AI investigating transaction..."
-                    ):
-
-                        try:
-
-                            response = client.models.generate_content(
-                                model="gemini-3.5-flash",
-                                contents=single_prompt
-                            )
-
-                            st.success(
-                                "Transaction investigation completed."
-                            )
-
-                            st.text_area(
-                                "AI Transaction Investigation",
-                                response.text,
-                                height=400
-                            )
-
-                        except Exception as e:
-
-                            st.error(
-                                f"AI investigation failed: {e}"
-                            )
-
-
-            # =================================================
-            # FULL AI INVESTIGATION
-            # =================================================
-
-            st.divider()
-
-            st.header(
-                "🤖 AI Financial Investigation"
-            )
-
-            st.write(
-                "Run a complete AI investigation of the "
-                "uploaded financial dataset."
-            )
-
-            if st.button(
-                "🚀 Run Full AI Investigation",
-                use_container_width=True
-            ):
-
-                if not AI_CONNECTED:
-
-                    st.error(
-                        "Gemini AI is not connected. "
-                        "Check GEMINI_API_KEY in Streamlit Secrets."
-                    )
-
-                else:
-
-                    # Limit dataset size sent to AI
-                    investigation_df = df.head(100)
-
-                    investigation_prompt = f"""
-You are LedgerLens, an AI financial
-investigation assistant.
-
-Analyze ONLY the financial evidence
-provided below.
-
-Objectives:
-
-1. Identify suspicious financial activity.
-2. Identify high and critical risk transactions.
-3. Explain important anomalies.
-4. Identify unusual financial patterns.
-5. Estimate financial impact when supported.
-6. Explain possible causes.
-7. Provide recommendations for human review.
+Analyze ONLY the financial record below.
 
 Rules:
 
-- Do not invent missing information.
-- Do not assume fraud without evidence.
-- Clearly distinguish anomaly from confirmed fraud.
-- Do not authorize financial transactions.
-- Recommendations are for human review only.
+1. Identify suspicious or unusual activity.
+2. Explain the evidence clearly.
+3. Mention financial impact only when supported.
+4. Do not invent information.
+5. Clearly state when evidence is insufficient.
+6. Do not authorize or execute transactions.
+7. Recommendations are for human review only.
+8. Be concise and professional.
 
-Return:
+Return exactly:
 
-Executive Summary:
-
-Key Findings:
-
-High-Risk Activity:
-
-Anomaly Analysis:
-
+Finding:
+Evidence:
 Financial Impact:
-
-Possible Causes:
-
-Recommended Actions:
-
+Possible Cause:
+Recommendation:
 Confidence:
 
-FINANCIAL DATA:
+FINANCIAL RECORD:
 
-{investigation_df.to_string(index=False)}
+{evidence}
 """
 
-                    with st.spinner(
-                        "🤖 LedgerLens AI is investigating the financial data..."
-                    ):
+        with st.spinner(
+            "LedgerLens AI is investigating this record..."
+        ):
 
-                        try:
+            try:
 
-                            response = client.models.generate_content(
-                                model="gemini-3.5-flash",
-                                contents=investigation_prompt
-                            )
-
-                            st.success(
-                                "AI investigation completed."
-                            )
-
-                            st.text_area(
-                                "LedgerLens AI Investigation Report",
-                                response.text,
-                                height=600
-                            )
-
-                        except Exception as e:
-
-                            st.error(
-                                f"AI investigation failed: {e}"
-                            )
-
-
-        except Exception as e:
-
-            st.error(
-                f"Error processing CSV: {e}"
-            )
-
-
-    # ========================================================
-    # PDF
-    # ========================================================
-
-    elif file_name.endswith(".pdf"):
-
-        st.success(
-            f"✅ {uploaded_file.name} uploaded successfully"
-        )
-
-        st.header("📄 PDF Financial Data")
-
-        try:
-
-            extracted_text = extract_pdf_text(
-                uploaded_file
-            )
-
-            if extracted_text.strip():
+                response = (
+                    client.models.generate_content(
+                        model="gemini-3.5-flash",
+                        contents=prompt
+                    )
+                )
 
                 st.success(
-                    "PDF text extracted successfully."
+                    "Investigation completed."
                 )
 
-                with st.expander(
-                    "View extracted PDF data"
-                ):
+                with st.container(border=True):
 
-                    st.text_area(
-                        "Extracted Content",
-                        extracted_text,
-                        height=350
+                    st.subheader(
+                        "📋 AI Investigation Report"
                     )
 
+                    st.text_area(
+                        "LedgerLens AI Report",
+                        response.text,
+                        height=450
+                    )
 
-                # --------------------------------------------
-                # PDF AI INVESTIGATION
-                # --------------------------------------------
+            except Exception as e:
 
-                st.divider()
-
-                st.header(
-                    "🤖 AI Financial Investigation"
+                st.error(
+                    f"AI investigation failed: {e}"
                 )
 
-                if st.button(
-                    "🚀 Investigate PDF Financial Data",
-                    use_container_width=True
-                ):
 
-                    if not AI_CONNECTED:
+# =========================================================
+# DATA UPLOAD PAGE
+# =========================================================
 
-                        st.error(
-                            "Gemini AI is not connected."
+if page == "📂 Data Upload":
+
+    st.header(
+        "📂 Upload Financial Data"
+    )
+
+    st.write(
+        "Upload one or more financial CSV or PDF files. "
+        "LedgerLens automatically identifies the dataset "
+        "and generates the appropriate analysis."
+    )
+
+    st.info(
+        "💡 You do NOT need to tell LedgerLens whether "
+        "the file is transactions, refunds, fees, or settlements."
+    )
+
+    uploaded_files = st.file_uploader(
+        "Choose financial files",
+        type=["csv", "pdf"],
+        accept_multiple_files=True
+    )
+
+    if not uploaded_files:
+
+        st.info(
+            "Upload one or more financial files "
+            "to begin analysis."
+        )
+
+    else:
+
+        st.success(
+            f"{len(uploaded_files)} file(s) uploaded."
+        )
+
+        for uploaded_file in uploaded_files:
+
+            st.divider()
+
+            file_name = (
+                uploaded_file.name.lower()
+            )
+
+            # =================================================
+            # CSV
+            # =================================================
+
+            if file_name.endswith(".csv"):
+
+                try:
+
+                    df = pd.read_csv(
+                        uploaded_file
+                    )
+
+                    df = normalize_columns(
+                        df
+                    )
+
+                    dataset_type = (
+                        detect_dataset_type(
+                            df
                         )
+                    )
+
+                    analyzed_df, error = (
+                        analyze_financial_data(
+                            df
+                        )
+                    )
+
+                    if error:
+
+                        st.error(error)
 
                     else:
 
-                        pdf_prompt = f"""
-You are LedgerLens, an AI financial
-investigation assistant.
+                        st.success(
+                            f"Detected dataset: "
+                            f"{dataset_type}"
+                        )
 
-Analyze ONLY the financial information
-extracted from this PDF.
+                        st.session_state.processed_files[
+                            uploaded_file.name
+                        ] = {
+
+                            "data":
+                                analyzed_df,
+
+                            "type":
+                                dataset_type
+                        }
+
+                        with st.expander(
+                            f"📄 {uploaded_file.name}",
+                            expanded=True
+                        ):
+
+                            st.caption(
+                                f"Rows: {len(df)} | "
+                                f"Columns: {len(df.columns)}"
+                            )
+
+                            display_dashboard(
+                                df,
+                                dataset_type
+                            )
+
+                except Exception as e:
+
+                    st.error(
+                        f"Error processing CSV: {e}"
+                    )
+
+            # =================================================
+            # PDF
+            # =================================================
+
+            elif file_name.endswith(".pdf"):
+
+                try:
+
+                    extracted_text = (
+                        extract_pdf_text(
+                            uploaded_file
+                        )
+                    )
+
+                    if not extracted_text.strip():
+
+                        st.warning(
+                            "No readable text was found "
+                            "in this PDF."
+                        )
+
+                        continue
+
+                    st.success(
+                        "PDF text extracted successfully."
+                    )
+
+                    pdf_df = (
+                        pdf_text_to_dataframe(
+                            extracted_text
+                        )
+                    )
+
+                    with st.expander(
+                        f"📄 {uploaded_file.name}",
+                        expanded=True
+                    ):
+
+                        # =====================================
+                        # TABLE FOUND
+                        # =====================================
+
+                        if pdf_df is not None:
+
+                            pdf_df = normalize_columns(
+                                pdf_df
+                            )
+
+                            dataset_type = (
+                                detect_dataset_type(
+                                    pdf_df
+                                )
+                            )
+
+                            st.success(
+                                "Structured financial table detected."
+                            )
+
+                            st.subheader(
+                                "📊 Extracted Financial Table"
+                            )
+
+                            st.dataframe(
+                                pdf_df,
+                                use_container_width=True
+                            )
+
+                            st.subheader(
+                                "📊 Generated Dashboard"
+                            )
+
+                            analyzed_pdf_df = (
+                                display_dashboard(
+                                    pdf_df,
+                                    dataset_type
+                                )
+                            )
+
+                            if analyzed_pdf_df is not None:
+
+                                st.session_state.processed_files[
+                                    uploaded_file.name
+                                ] = {
+
+                                    "data":
+                                        analyzed_pdf_df,
+
+                                    "type":
+                                        dataset_type
+                                }
+
+                            # =================================
+                            # CONVERT PDF TO CSV
+                            # =================================
+
+                            converted_csv = (
+                                pdf_df.to_csv(
+                                    index=False
+                                )
+                            )
+
+                            st.download_button(
+                                "⬇️ Download Converted CSV",
+                                data=converted_csv,
+                                file_name=(
+                                    uploaded_file.name
+                                    .rsplit(".", 1)[0]
+                                    + "_converted.csv"
+                                ),
+                                mime="text/csv"
+                            )
+
+                        # =====================================
+                        # NO TABLE
+                        # =====================================
+
+                        else:
+
+                            st.info(
+                                "No structured financial table "
+                                "was detected."
+                            )
+
+                            st.subheader(
+                                "📑 Extracted PDF Content"
+                            )
+
+                            st.text_area(
+                                "PDF Content",
+                                extracted_text,
+                                height=350
+                            )
+
+                            st.info(
+                                "AI investigation can still "
+                                "analyze this financial report."
+                            )
+
+                            if gemini_available:
+
+                                investigate_pdf = st.button(
+                                    "🔎 Investigate PDF",
+                                    key=(
+                                        "pdf_ai_"
+                                        + uploaded_file.name
+                                    )
+                                )
+
+                                if investigate_pdf:
+
+                                    prompt = f"""
+You are LedgerLens, an AI financial investigation assistant.
+
+Analyze ONLY the financial evidence below.
 
 Identify:
 
 - Suspicious activity
-- Financial anomalies
-- High-risk information
-- Potential financial impact
+- Unusual financial patterns
+- Possible financial impact
 - Possible causes
-- Recommended human review
+- Recommendations
+- Confidence
 
-Do not invent information.
-Do not claim fraud without evidence.
-Do not authorize transactions.
+Do not invent missing information.
 
-Return:
+FINANCIAL EVIDENCE:
 
-Executive Summary:
-
-Key Findings:
-
-Risk Assessment:
-
-Evidence:
-
-Financial Impact:
-
-Possible Causes:
-
-Recommendations:
-
-Confidence:
-
-PDF FINANCIAL DATA:
-
-{extracted_text[:30000]}
+{extracted_text}
 """
 
-                        with st.spinner(
-                            "🤖 AI is investigating the PDF..."
-                        ):
+                                    with st.spinner(
+                                        "LedgerLens AI is investigating..."
+                                    ):
 
-                            try:
+                                        try:
 
-                                response = client.models.generate_content(
-                                    model="gemini-3.5-flash",
-                                    contents=pdf_prompt
+                                            response = (
+                                                client.models.generate_content(
+                                                    model="gemini-3.5-flash",
+                                                    contents=prompt
+                                                )
+                                            )
+
+                                            st.success(
+                                                "Investigation completed."
+                                            )
+
+                                            with st.container(
+                                                border=True
+                                            ):
+
+                                                st.subheader(
+                                                    "📋 AI Investigation Report"
+                                                )
+
+                                                st.text_area(
+                                                    "AI Investigation Report",
+                                                    response.text,
+                                                    height=450
+                                                )
+
+                                        except Exception as e:
+
+                                            st.error(
+                                                f"AI investigation failed: {e}"
+                                            )
+
+                            else:
+
+                                st.warning(
+                                    "Gemini AI is not configured."
                                 )
 
-                                st.success(
-                                    "PDF investigation completed."
-                                )
+                except Exception as e:
 
-                                st.text_area(
-                                    "LedgerLens AI Report",
-                                    response.text,
-                                    height=600
-                                )
+                    st.error(
+                        f"Error processing PDF: {e}"
+                    )
 
-                            except Exception as e:
 
-                                st.error(
-                                    f"AI investigation failed: {e}"
-                                )
+# =========================================================
+# DASHBOARD PAGE
+# =========================================================
 
-            else:
+elif page == "📊 Dashboard":
 
-                st.warning(
-                    "No readable text was found in this PDF."
-                )
+    st.header(
+        "📊 LedgerLens Dashboard"
+    )
 
-        except Exception as e:
+    if not st.session_state.processed_files:
 
-            st.error(
-                f"Error extracting PDF: {e}"
+        st.info(
+            "No financial dataset is currently loaded."
+        )
+
+        with st.container(border=True):
+
+            st.subheader(
+                "🚀 How to begin"
             )
 
+            st.markdown(
+                """
+                **1. Upload** your CSV or PDF
 
-# ============================================================
-# NO FILE STATE
-# ============================================================
+                **2. Detect** the financial dataset
 
-else:
+                **3. Analyze** financial amounts
 
-    st.info(
-        "👆 Upload a CSV or PDF financial dataset to begin."
+                **4. Detect** anomalies
+
+                **5. Classify** LOW, MEDIUM, HIGH or CRITICAL risk
+
+                **6. Investigate** individual transactions
+
+                **7. Use AI** to explain suspicious activity
+
+                **8. Export** the processed dataset
+                """
+            )
+
+    else:
+
+        dataset_names = list(
+            st.session_state.processed_files.keys()
+        )
+
+        selected_file = st.selectbox(
+            "Select dataset",
+            dataset_names
+        )
+
+        selected_data = (
+            st.session_state.processed_files[
+                selected_file
+            ]
+        )
+
+        display_dashboard(
+            selected_data["data"],
+            selected_data["type"]
+        )
+
+
+# =========================================================
+# TRANSACTION EXPLORER PAGE
+# =========================================================
+
+elif page == "🔎 Transaction Explorer":
+
+    if not st.session_state.processed_files:
+
+        st.info(
+            "Upload a financial dataset first."
+        )
+
+    else:
+
+        dataset_names = list(
+            st.session_state.processed_files.keys()
+        )
+
+        selected_file = st.selectbox(
+            "Select dataset",
+            dataset_names,
+            key="explorer_dataset"
+        )
+
+        selected_data = (
+            st.session_state.processed_files[
+                selected_file
+            ]
+        )
+
+        transaction_explorer(
+            selected_data["data"]
+        )
+
+
+# =========================================================
+# AI INVESTIGATION PAGE
+# =========================================================
+
+elif page == "🤖 AI Investigation":
+
+    st.header(
+        "🤖 AI Financial Investigation"
     )
 
-    st.markdown(
-        """
-        ### What LedgerLens does
+    if gemini_available:
 
-        **📂 Data Upload**  
-        Accepts financial CSV and PDF data.
+        st.success(
+            "🟢 Gemini AI is connected and ready."
+        )
 
-        **📊 Financial Risk Dashboard**  
-        Summarizes financial activity and risk.
+        st.write(
+            "Select a dataset and investigate an "
+            "individual financial record using LedgerLens AI."
+        )
 
-        **🔍 Anomaly Detection**  
-        Identifies unusual transaction values.
+        if st.session_state.processed_files:
 
-        **🚨 Risk Classification**  
-        Classifies transactions as Low, Medium, High or Critical.
+            dataset_names = list(
+                st.session_state.processed_files.keys()
+            )
 
-        **🔎 Single Transaction Investigation**  
-        Allows individual transactions to be investigated.
+            selected_file = st.selectbox(
+                "Select dataset",
+                dataset_names,
+                key="ai_dataset"
+            )
 
-        **🤖 AI Investigation**  
-        Generates an evidence-based financial investigation report.
+            selected_data = (
+                st.session_state.processed_files[
+                    selected_file
+                ]
+            )
 
-        **👤 Human Review**  
-        AI recommendations remain recommendations for human review.
-        """
-    )
+            transaction_explorer(
+                selected_data["data"]
+            )
+
+        else:
+
+            st.info(
+                "Upload financial data first."
+            )
+
+    else:
+
+        st.error(
+            "Gemini AI is not configured."
+        )
+
+        st.write(
+            "Add GEMINI_API_KEY to Streamlit Secrets."
+        )
+
+
+# =========================================================
+# FOOTER
+# =========================================================
+
+st.divider()
+
+st.caption(
+    "LedgerLens • AI Finance Controller • "
+    "Financial Risk Intelligence Platform"
+)
+
+st.caption(
+    "Automated analysis • Risk detection • "
+    "Transaction investigation • AI explanations"
+)
