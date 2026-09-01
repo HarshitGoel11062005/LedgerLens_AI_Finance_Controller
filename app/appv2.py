@@ -1,13 +1,15 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import io
 import re
+
 from pypdf import PdfReader
 from google import genai
 
 
 # =========================================================
-# PAGE CONFIGURATION
+# PAGE CONFIG
 # =========================================================
 
 st.set_page_config(
@@ -19,7 +21,7 @@ st.set_page_config(
 
 
 # =========================================================
-# CUSTOM UI / CSS
+# CUSTOM CSS
 # =========================================================
 
 st.markdown(
@@ -44,31 +46,30 @@ st.markdown(
 
     section[data-testid="stSidebar"] {
         background: #111827;
-        border-right: 1px solid #263244;
     }
 
     section[data-testid="stSidebar"] * {
-        color: #f9fafb !important;
+        color: white !important;
     }
 
-    .sidebar-logo {
-        font-size: 26px;
+    .sidebar-brand {
+        font-size: 27px;
         font-weight: 800;
-        margin-bottom: 5px;
+        margin-bottom: 4px;
     }
 
     .sidebar-subtitle {
         font-size: 13px;
         color: #9ca3af !important;
-        margin-bottom: 30px;
+        margin-bottom: 25px;
     }
 
-    .status-box {
+    .status-card {
         background: #1f2937;
-        padding: 15px;
-        border-radius: 12px;
-        margin-top: 20px;
         border: 1px solid #374151;
+        border-radius: 14px;
+        padding: 15px;
+        margin-top: 15px;
     }
 
     /* ---------- HERO ---------- */
@@ -76,50 +77,94 @@ st.markdown(
     .hero {
         background: linear-gradient(
             135deg,
-            #111827,
+            #0f172a,
             #1e3a5f
         );
 
+        border-radius: 20px;
         padding: 32px 35px;
-        border-radius: 18px;
         margin-bottom: 25px;
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+
+        box-shadow:
+            0 12px 35px rgba(15, 23, 42, 0.14);
     }
 
     .hero-title {
-        color: white !important;
-        font-size: 40px;
-        font-weight: 800;
-        margin-bottom: 5px;
+        color: white;
+        font-size: 42px;
+        font-weight: 850;
+        margin-bottom: 7px;
     }
 
     .hero-subtitle {
-        color: #dbeafe !important;
+        color: #dbeafe;
         font-size: 17px;
-        margin-bottom: 0;
     }
 
-    /* ---------- KPI CARDS ---------- */
+    .hero-tag {
+        display: inline-block;
+        margin-top: 15px;
+        padding: 6px 12px;
+        border-radius: 20px;
+        background: rgba(255,255,255,0.12);
+        color: #e0f2fe;
+        font-size: 12px;
+    }
 
-    .kpi-card {
+    /* ---------- CARDS ---------- */
+
+    .card {
         background: white;
-        border-radius: 16px;
-        padding: 20px;
+        border-radius: 17px;
+        padding: 22px;
         border: 1px solid #e5e7eb;
-        box-shadow: 0 5px 18px rgba(15, 23, 42, 0.06);
-        min-height: 120px;
+
+        box-shadow:
+            0 5px 18px rgba(15, 23, 42, 0.06);
+
+        margin-bottom: 20px;
+    }
+
+    .card-title {
+        font-size: 21px;
+        font-weight: 800;
+        color: #172033;
+        margin-bottom: 5px;
+    }
+
+    .card-description {
+        color: #64748b;
+        font-size: 13px;
+        margin-bottom: 15px;
+    }
+
+    /* ---------- KPI ---------- */
+
+    .kpi {
+        background: white;
+        border-radius: 17px;
+        padding: 20px;
+
+        border: 1px solid #e5e7eb;
+
+        box-shadow:
+            0 5px 18px rgba(15, 23, 42, 0.06);
+
+        min-height: 125px;
     }
 
     .kpi-label {
         color: #64748b;
-        font-size: 14px;
-        font-weight: 600;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .3px;
     }
 
     .kpi-value {
         color: #111827;
-        font-size: 31px;
-        font-weight: 800;
+        font-size: 32px;
+        font-weight: 850;
         margin-top: 8px;
     }
 
@@ -129,35 +174,10 @@ st.markdown(
         margin-top: 4px;
     }
 
-    /* ---------- SECTION ---------- */
-
-    .section-card {
-        background: white;
-        border-radius: 16px;
-        padding: 24px;
-        border: 1px solid #e5e7eb;
-        box-shadow: 0 5px 18px rgba(15, 23, 42, 0.05);
-        margin-top: 20px;
-        margin-bottom: 20px;
-    }
-
-    .section-title {
-        font-size: 21px;
-        font-weight: 750;
-        color: #172033;
-        margin-bottom: 5px;
-    }
-
-    .section-description {
-        color: #64748b;
-        font-size: 13px;
-        margin-bottom: 18px;
-    }
-
-    /* ---------- RISK BADGES ---------- */
+    /* ---------- RISK ---------- */
 
     .risk-critical {
-        color: #991b1b;
+        color: #b91c1c;
         font-weight: 800;
     }
 
@@ -176,7 +196,7 @@ st.markdown(
         font-weight: 800;
     }
 
-    /* ---------- UPLOAD AREA ---------- */
+    /* ---------- UPLOAD ---------- */
 
     [data-testid="stFileUploader"] {
         background: white;
@@ -185,13 +205,20 @@ st.markdown(
         padding: 10px;
     }
 
+    /* ---------- BUTTON ---------- */
+
+    .stButton > button {
+        border-radius: 10px;
+        font-weight: 700;
+    }
+
     /* ---------- FOOTER ---------- */
 
     .footer {
         text-align: center;
         color: #94a3b8;
         font-size: 12px;
-        padding: 30px;
+        padding: 35px;
     }
 
     </style>
@@ -201,13 +228,15 @@ st.markdown(
 
 
 # =========================================================
-# GEMINI CLIENT
+# GEMINI
 # =========================================================
 
 try:
 
+    api_key = st.secrets["GEMINI_API_KEY"]
+
     client = genai.Client(
-        api_key=st.secrets["GEMINI_API_KEY"]
+        api_key=api_key
     )
 
     gemini_available = True
@@ -219,13 +248,27 @@ except Exception:
 
 
 # =========================================================
+# SESSION STATE
+# =========================================================
+
+if "processed_files" not in st.session_state:
+    st.session_state.processed_files = {}
+
+if "selected_dataset" not in st.session_state:
+    st.session_state.selected_dataset = None
+
+if "selected_transaction" not in st.session_state:
+    st.session_state.selected_transaction = None
+
+
+# =========================================================
 # SIDEBAR
 # =========================================================
 
 with st.sidebar:
 
     st.markdown(
-        '<div class="sidebar-logo">💰 LedgerLens</div>',
+        '<div class="sidebar-brand">💰 LedgerLens</div>',
         unsafe_allow_html=True
     )
 
@@ -243,6 +286,7 @@ with st.sidebar:
         [
             "📊 Dashboard",
             "📂 Data Upload",
+            "🔎 Transaction Explorer",
             "🤖 AI Investigation"
         ],
         label_visibility="collapsed"
@@ -254,21 +298,25 @@ with st.sidebar:
 
     if gemini_available:
 
-        st.success("Gemini AI Connected")
+        st.success(
+            "Gemini AI Connected"
+        )
 
     else:
 
-        st.warning("Gemini AI Not Configured")
+        st.warning(
+            "Gemini AI Not Configured"
+        )
 
     st.markdown(
         """
-        <div class="status-box">
-            <b>LedgerLens Engine</b><br>
-            <span style="color:#9ca3af;">
-            Financial anomaly detection<br>
+        <div class="status-card">
+            <b>LedgerLens Engine</b><br><br>
+            Financial data processing<br>
+            Anomaly detection<br>
             Risk classification<br>
-            AI investigation
-            </span>
+            Transaction investigation<br>
+            AI explanations
         </div>
         """,
         unsafe_allow_html=True
@@ -276,7 +324,7 @@ with st.sidebar:
 
 
 # =========================================================
-# HERO HEADER
+# HERO
 # =========================================================
 
 st.markdown(
@@ -288,7 +336,12 @@ st.markdown(
         </div>
 
         <div class="hero-subtitle">
-            AI-powered financial risk intelligence and investigation platform
+            AI-powered financial risk intelligence
+            and investigation platform
+        </div>
+
+        <div class="hero-tag">
+            Automated Risk Detection • Investigation • Analytics
         </div>
 
     </div>
@@ -298,7 +351,7 @@ st.markdown(
 
 
 # =========================================================
-# DATASET TYPE DETECTION
+# DATASET DETECTION
 # =========================================================
 
 def detect_dataset_type(df):
@@ -308,14 +361,15 @@ def detect_dataset_type(df):
         .strip()
         .lower()
         .replace(" ", "_")
+        .replace("-", "_")
         for col in df.columns
     ]
 
-    column_text = " ".join(columns)
+    text = " ".join(columns)
 
     if any(
-        keyword in column_text
-        for keyword in [
+        x in text
+        for x in [
             "transaction_id",
             "payment_id",
             "order_id"
@@ -324,8 +378,8 @@ def detect_dataset_type(df):
         return "Transactions"
 
     if any(
-        keyword in column_text
-        for keyword in [
+        x in text
+        for x in [
             "refund_id",
             "refund_amount",
             "refund_date"
@@ -334,18 +388,18 @@ def detect_dataset_type(df):
         return "Refunds"
 
     if any(
-        keyword in column_text
-        for keyword in [
-            "fee",
+        x in text
+        for x in [
             "fee_amount",
-            "processing_fee"
+            "processing_fee",
+            "fee_id"
         ]
     ):
         return "Fees"
 
     if any(
-        keyword in column_text
-        for keyword in [
+        x in text
+        for x in [
             "settlement_id",
             "settlement_amount",
             "settlement_date"
@@ -353,10 +407,161 @@ def detect_dataset_type(df):
     ):
         return "Settlements"
 
-    if "amount" in columns:
-        return "Financial Data"
-
     return "Financial Data"
+
+
+# =========================================================
+# NORMALIZE COLUMNS
+# =========================================================
+
+def normalize_columns(df):
+
+    df = df.copy()
+
+    df.columns = [
+        str(col)
+        .strip()
+        .lower()
+        .replace(" ", "_")
+        .replace("-", "_")
+        for col in df.columns
+    ]
+
+    return df
+
+
+# =========================================================
+# FIND AMOUNT COLUMN
+# =========================================================
+
+def find_amount_column(df):
+
+    priority = [
+
+        "amount",
+
+        "transaction_amount",
+
+        "payment_amount",
+
+        "refund_amount",
+
+        "fee_amount",
+
+        "settlement_amount",
+
+        "total_amount",
+
+        "amount_inr",
+
+        "value"
+
+    ]
+
+    for column in priority:
+
+        if column in df.columns:
+            return column
+
+    for column in df.columns:
+
+        if (
+            "amount" in column
+            or "value" in column
+        ):
+
+            return column
+
+    return None
+
+
+# =========================================================
+# ANOMALY ANALYSIS
+# =========================================================
+
+def analyze_financial_data(df):
+
+    df = normalize_columns(df)
+
+    amount_column = find_amount_column(df)
+
+    if amount_column is None:
+
+        return (
+            None,
+            "No financial amount column could be identified."
+        )
+
+    df[amount_column] = pd.to_numeric(
+        df[amount_column],
+        errors="coerce"
+    )
+
+    valid_df = df.dropna(
+        subset=[amount_column]
+    ).copy()
+
+    if len(valid_df) == 0:
+
+        return (
+            None,
+            "No valid financial amounts were found."
+        )
+
+    mean_amount = valid_df[
+        amount_column
+    ].mean()
+
+    std_amount = valid_df[
+        amount_column
+    ].std()
+
+    if (
+        std_amount == 0
+        or pd.isna(std_amount)
+    ):
+
+        valid_df["anomaly_score"] = 0.0
+
+    else:
+
+        valid_df["anomaly_score"] = (
+
+            (
+                (
+                    valid_df[amount_column]
+                    - mean_amount
+                ).abs()
+                / std_amount
+            )
+            * 25
+
+        )
+
+        valid_df["anomaly_score"] = (
+            valid_df["anomaly_score"]
+            .clip(0, 100)
+        )
+
+    def risk_level(score):
+
+        if score >= 75:
+            return "CRITICAL"
+
+        elif score >= 50:
+            return "HIGH"
+
+        elif score >= 25:
+            return "MEDIUM"
+
+        return "LOW"
+
+    valid_df["risk_level"] = (
+        valid_df["anomaly_score"]
+        .apply(risk_level)
+    )
+
+    return valid_df, None
 
 
 # =========================================================
@@ -365,23 +570,27 @@ def detect_dataset_type(df):
 
 def extract_pdf_text(uploaded_file):
 
-    reader = PdfReader(uploaded_file)
+    uploaded_file.seek(0)
 
-    extracted_text = ""
+    reader = PdfReader(
+        uploaded_file
+    )
+
+    text = ""
 
     for page in reader.pages:
 
-        text = page.extract_text()
+        page_text = page.extract_text()
 
-        if text:
+        if page_text:
 
-            extracted_text += text + "\n"
+            text += page_text + "\n"
 
-    return extracted_text
+    return text
 
 
 # =========================================================
-# PDF TABLE DETECTION
+# PDF TABLE CONVERSION
 # =========================================================
 
 def pdf_text_to_dataframe(text):
@@ -393,12 +602,10 @@ def pdf_text_to_dataframe(text):
     ]
 
     if len(lines) < 2:
-
         return None
 
-
     # -----------------------------------------------------
-    # PIPE-SEPARATED TABLE
+    # PIPE TABLE
     # -----------------------------------------------------
 
     pipe_lines = [
@@ -426,46 +633,44 @@ def pdf_text_to_dataframe(text):
 
             header = rows[0]
 
-            if len(rows) > 1:
+            data_rows = rows[1:]
+
+            if data_rows:
+
+                first_row = data_rows[0]
 
                 if all(
                     re.fullmatch(
                         r"[-: ]+",
                         item or ""
                     )
-                    for item in rows[1]
+                    for item in first_row
                 ):
 
-                    rows = rows[2:]
+                    data_rows = data_rows[1:]
 
-                else:
+            width = len(header)
 
-                    rows = rows[1:]
+            cleaned_rows = [
 
-            if rows:
+                row[:width]
+                + [""] * max(
+                    0,
+                    width - len(row)
+                )
 
-                width = len(header)
+                for row in data_rows
+            ]
 
-                cleaned_rows = [
-
-                    row[:width]
-                    + [""] * max(
-                        0,
-                        width - len(row)
-                    )
-
-                    for row in rows
-
-                ]
+            if cleaned_rows:
 
                 return pd.DataFrame(
                     cleaned_rows,
                     columns=header
                 )
 
-
     # -----------------------------------------------------
-    # COMMA-SEPARATED TABLE
+    # COMMA TABLE
     # -----------------------------------------------------
 
     comma_lines = [
@@ -491,15 +696,13 @@ def pdf_text_to_dataframe(text):
                 return df
 
         except Exception:
-
             pass
-
 
     # -----------------------------------------------------
     # WHITESPACE TABLE
     # -----------------------------------------------------
 
-    whitespace_rows = []
+    rows = []
 
     for line in lines:
 
@@ -510,13 +713,13 @@ def pdf_text_to_dataframe(text):
 
         if len(parts) >= 2:
 
-            whitespace_rows.append(parts)
+            rows.append(parts)
 
-    if len(whitespace_rows) >= 3:
+    if len(rows) >= 3:
 
-        header = whitespace_rows[0]
+        header = rows[0]
 
-        data_rows = whitespace_rows[1:]
+        data_rows = rows[1:]
 
         width = len(header)
 
@@ -529,7 +732,6 @@ def pdf_text_to_dataframe(text):
             )
 
             for row in data_rows
-
         ]
 
         return pd.DataFrame(
@@ -541,498 +743,353 @@ def pdf_text_to_dataframe(text):
 
 
 # =========================================================
-# NORMALIZE COLUMNS
+# KPI CARD
 # =========================================================
 
-def normalize_columns(df):
+def kpi_card(
+    label,
+    value,
+    description
+):
 
-    df = df.copy()
+    st.markdown(
+        f"""
+        <div class="kpi">
 
-    df.columns = [
+            <div class="kpi-label">
+                {label}
+            </div>
 
-        str(column)
-        .strip()
-        .lower()
-        .replace(" ", "_")
-        .replace("-", "_")
+            <div class="kpi-value">
+                {value}
+            </div>
 
-        for column in df.columns
+            <div class="kpi-description">
+                {description}
+            </div>
 
-    ]
-
-    return df
-
-
-# =========================================================
-# ANOMALY ANALYSIS
-# =========================================================
-
-def analyze_financial_data(df):
-
-    df = normalize_columns(df)
-
-    amount_column = None
-
-    possible_amount_columns = [
-
-        "amount",
-        "transaction_amount",
-        "payment_amount",
-        "refund_amount",
-        "fee_amount",
-        "settlement_amount",
-        "total_amount",
-        "amount_inr",
-        "value"
-
-    ]
-
-    for column in possible_amount_columns:
-
-        if column in df.columns:
-
-            amount_column = column
-
-            break
-
-
-    if amount_column is None:
-
-        for column in df.columns:
-
-            if (
-                "amount" in column
-                or "value" in column
-            ):
-
-                amount_column = column
-
-                break
-
-
-    if amount_column is None:
-
-        return None, (
-            "No financial amount column "
-            "could be identified."
-        )
-
-
-    df[amount_column] = pd.to_numeric(
-        df[amount_column],
-        errors="coerce"
+        </div>
+        """,
+        unsafe_allow_html=True
     )
-
-
-    valid_df = df.dropna(
-        subset=[amount_column]
-    ).copy()
-
-
-    if len(valid_df) == 0:
-
-        return None, (
-            "No valid financial amounts "
-            "were found."
-        )
-
-
-    mean_amount = valid_df[
-        amount_column
-    ].mean()
-
-
-    std_amount = valid_df[
-        amount_column
-    ].std()
-
-
-    # -----------------------------------------------------
-    # ANOMALY SCORE
-    # -----------------------------------------------------
-
-    if std_amount == 0 or pd.isna(std_amount):
-
-        valid_df["anomaly_score"] = 0.0
-
-    else:
-
-        valid_df["anomaly_score"] = (
-
-            (
-                (
-                    valid_df[amount_column]
-                    - mean_amount
-                ).abs()
-
-                / std_amount
-
-            ) * 25
-
-        )
-
-        valid_df["anomaly_score"] = (
-            valid_df["anomaly_score"]
-            .clip(0, 100)
-        )
-
-
-    # -----------------------------------------------------
-    # RISK CLASSIFICATION
-    # -----------------------------------------------------
-
-    def risk_level(score):
-
-        if score >= 75:
-
-            return "CRITICAL"
-
-        elif score >= 50:
-
-            return "HIGH"
-
-        elif score >= 25:
-
-            return "MEDIUM"
-
-        return "LOW"
-
-
-    valid_df["risk_level"] = (
-
-        valid_df["anomaly_score"]
-        .apply(risk_level)
-
-    )
-
-
-    return valid_df, None
 
 
 # =========================================================
 # DASHBOARD
 # =========================================================
 
-def display_dashboard(df, dataset_name):
+def display_dashboard(
+    df,
+    dataset_name="Financial Data"
+):
 
-    analyzed_df, error_message = (
+    analyzed_df, error = (
         analyze_financial_data(df)
     )
 
+    if error:
 
-    if error_message:
-
-        st.warning(error_message)
+        st.warning(error)
 
         st.dataframe(
             df,
             use_container_width=True
         )
 
-        return
+        return analyzed_df
 
-
-    # =====================================================
-    # DASHBOARD HEADER
-    # =====================================================
+    # -----------------------------------------------------
+    # HEADER
+    # -----------------------------------------------------
 
     st.markdown(
-        """
-        <div class="section-card">
+        f"""
+        <div class="card">
 
-        <div class="section-title">
-        📊 Financial Risk Dashboard
-        </div>
+            <div class="card-title">
+                📊 Financial Risk Dashboard
+            </div>
 
-        <div class="section-description">
-        Automated analysis of the uploaded financial dataset.
-        </div>
+            <div class="card-description">
+                Dataset detected as:
+                <b>{dataset_name}</b>
+            </div>
 
         </div>
         """,
         unsafe_allow_html=True
     )
 
-
-    # =====================================================
+    # -----------------------------------------------------
     # METRICS
-    # =====================================================
+    # -----------------------------------------------------
 
-    total_records = len(analyzed_df)
+    total_records = len(
+        analyzed_df
+    )
 
-    high_risk_count = len(
+    high_count = len(
         analyzed_df[
-            analyzed_df["risk_level"].isin(
-                ["HIGH", "CRITICAL"]
-            )
+            analyzed_df["risk_level"]
+            .isin(["HIGH", "CRITICAL"])
         ]
     )
 
-    medium_risk_count = len(
+    medium_count = len(
         analyzed_df[
-            analyzed_df["risk_level"] == "MEDIUM"
+            analyzed_df["risk_level"]
+            == "MEDIUM"
         ]
     )
 
-    low_risk_count = len(
+    low_count = len(
         analyzed_df[
-            analyzed_df["risk_level"] == "LOW"
+            analyzed_df["risk_level"]
+            == "LOW"
         ]
     )
 
-
-    amount_columns = [
-
-        column
-        for column in analyzed_df.columns
-
-        if (
-            "amount" in column
-            or column == "value"
-        )
-
-    ]
-
-
-    total_amount = 0
-
-    if amount_columns:
-
-        total_amount = analyzed_df[
-            amount_columns[0]
-        ].sum()
-
-
-    # =====================================================
-    # KPI CARDS
-    # =====================================================
-
-    col1, col2, col3, col4 = st.columns(4)
-
-
-    with col1:
-
-        st.markdown(
-            f"""
-            <div class="kpi-card">
-
-                <div class="kpi-label">
-                TOTAL RECORDS
-                </div>
-
-                <div class="kpi-value">
-                {total_records:,}
-                </div>
-
-                <div class="kpi-description">
-                Financial records analyzed
-                </div>
-
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-
-    with col2:
-
-        st.markdown(
-            f"""
-            <div class="kpi-card">
-
-                <div class="kpi-label">
-                🔴 HIGH / CRITICAL
-                </div>
-
-                <div class="kpi-value">
-                {high_risk_count:,}
-                </div>
-
-                <div class="kpi-description">
-                Requires human review
-                </div>
-
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-
-    with col3:
-
-        st.markdown(
-            f"""
-            <div class="kpi-card">
-
-                <div class="kpi-label">
-                🟠 MEDIUM RISK
-                </div>
-
-                <div class="kpi-value">
-                {medium_risk_count:,}
-                </div>
-
-                <div class="kpi-description">
-                Transactions requiring attention
-                </div>
-
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-
-    with col4:
-
-        st.markdown(
-            f"""
-            <div class="kpi-card">
-
-                <div class="kpi-label">
-                🟢 LOW RISK
-                </div>
-
-                <div class="kpi-value">
-                {low_risk_count:,}
-                </div>
-
-                <div class="kpi-description">
-                No major anomaly detected
-                </div>
-
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-
-    # =====================================================
-    # RISK OVERVIEW
-    # =====================================================
-
-    col_left, col_right = st.columns(
-        [1, 1]
+    amount_column = find_amount_column(
+        analyzed_df
     )
 
+    total_amount = (
+        analyzed_df[amount_column].sum()
+        if amount_column
+        else 0
+    )
 
-    with col_left:
+    # -----------------------------------------------------
+    # KPI ROW
+    # -----------------------------------------------------
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    with c1:
+
+        kpi_card(
+            "TOTAL RECORDS",
+            f"{total_records:,}",
+            "Financial records analyzed"
+        )
+
+    with c2:
+
+        kpi_card(
+            "🔴 HIGH / CRITICAL",
+            f"{high_count:,}",
+            "Requires human review"
+        )
+
+    with c3:
+
+        kpi_card(
+            "🟠 MEDIUM RISK",
+            f"{medium_count:,}",
+            "Requires attention"
+        )
+
+    with c4:
+
+        kpi_card(
+            "🟢 LOW RISK",
+            f"{low_count:,}",
+            "No major anomaly detected"
+        )
+
+    st.write("")
+
+    # -----------------------------------------------------
+    # CHART ROW
+    # -----------------------------------------------------
+
+    left, right = st.columns(2)
+
+    # Risk Distribution
+
+    with left:
 
         st.markdown(
             """
-            <div class="section-card">
+            <div class="card">
 
-            <div class="section-title">
-            🎯 Risk Distribution
-            </div>
+                <div class="card-title">
+                    🎯 Risk Distribution
+                </div>
 
-            <div class="section-description">
-            Distribution of detected financial risk levels.
-            </div>
+                <div class="card-description">
+                    Distribution of financial risk levels.
+                </div>
 
             </div>
             """,
             unsafe_allow_html=True
         )
 
-        risk_data = pd.DataFrame(
+        risk_chart = pd.DataFrame(
             {
                 "Risk Level": [
-                    "Critical / High",
+                    "High / Critical",
                     "Medium",
                     "Low"
                 ],
 
                 "Records": [
-                    high_risk_count,
-                    medium_risk_count,
-                    low_risk_count
+                    high_count,
+                    medium_count,
+                    low_count
                 ]
             }
         )
 
-        risk_data = risk_data.set_index(
-            "Risk Level"
-        )
-
         st.bar_chart(
-            risk_data,
+            risk_chart.set_index(
+                "Risk Level"
+            ),
             use_container_width=True
         )
 
+    # Financial Overview
 
-    with col_right:
+    with right:
 
         st.markdown(
             """
-            <div class="section-card">
+            <div class="card">
 
-            <div class="section-title">
-            💰 Financial Overview
-            </div>
+                <div class="card-title">
+                    💰 Financial Overview
+                </div>
 
-            <div class="section-description">
-            Key financial statistics from the uploaded dataset.
-            </div>
+                <div class="card-description">
+                    Key financial statistics.
+                </div>
 
             </div>
             """,
             unsafe_allow_html=True
         )
 
-        if amount_columns:
+        if amount_column:
 
-            amount_column = amount_columns[0]
+            a1, a2, a3 = st.columns(3)
 
-            stat1, stat2 = st.columns(2)
-
-            with stat1:
+            with a1:
 
                 st.metric(
-                    "Total Amount",
+                    "Total",
                     f"{total_amount:,.2f}"
                 )
 
-            with stat2:
+            with a2:
 
                 st.metric(
-                    "Average Amount",
+                    "Average",
                     f"{analyzed_df[amount_column].mean():,.2f}"
                 )
 
-            st.metric(
-                "Maximum Transaction",
-                f"{analyzed_df[amount_column].max():,.2f}"
-            )
+            with a3:
 
-        else:
+                st.metric(
+                    "Maximum",
+                    f"{analyzed_df[amount_column].max():,.2f}"
+                )
 
-            st.info(
-                "No amount field available "
-                "for financial statistics."
-            )
+    # -----------------------------------------------------
+    # AMOUNT DISTRIBUTION
+    # -----------------------------------------------------
 
+    if amount_column:
 
-    # =====================================================
-    # FULL DATA
-    # =====================================================
+        st.markdown(
+            """
+            <div class="card">
+
+                <div class="card-title">
+                    📈 Amount Distribution
+                </div>
+
+                <div class="card-description">
+                    Financial amount trend across records.
+                </div>
+
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        amount_chart = (
+            analyzed_df[
+                [amount_column]
+            ]
+            .reset_index(drop=True)
+        )
+
+        amount_chart.columns = [
+            "Amount"
+        ]
+
+        st.line_chart(
+            amount_chart,
+            use_container_width=True
+        )
+
+    # -----------------------------------------------------
+    # RISK SCORE DISTRIBUTION
+    # -----------------------------------------------------
 
     st.markdown(
         """
-        <div class="section-card">
+        <div class="card">
 
-        <div class="section-title">
-        📋 Financial Data Analysis
-        </div>
+            <div class="card-title">
+                📊 Anomaly Score Distribution
+            </div>
 
-        <div class="section-description">
-        Complete dataset with anomaly scores and risk classification.
-        </div>
+            <div class="card-description">
+                Higher scores indicate stronger
+                deviation from normal financial activity.
+            </div>
 
         </div>
         """,
         unsafe_allow_html=True
     )
 
+    score_chart = pd.DataFrame(
+        {
+            "Anomaly Score":
+                analyzed_df[
+                    "anomaly_score"
+                ]
+        }
+    )
+
+    st.area_chart(
+        score_chart,
+        use_container_width=True
+    )
+
+    # -----------------------------------------------------
+    # FULL DATA
+    # -----------------------------------------------------
+
+    st.markdown(
+        """
+        <div class="card">
+
+            <div class="card-title">
+                📋 Financial Data Analysis
+            </div>
+
+            <div class="card-description">
+                Complete processed dataset.
+            </div>
+
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     st.dataframe(
         analyzed_df,
@@ -1040,44 +1097,46 @@ def display_dashboard(df, dataset_name):
         height=420
     )
 
-
-    # =====================================================
+    # -----------------------------------------------------
     # HIGH RISK
-    # =====================================================
+    # -----------------------------------------------------
 
-    high_risk = analyzed_df[
-        analyzed_df["risk_level"].isin(
-            ["HIGH", "CRITICAL"]
+    high_risk = (
+        analyzed_df[
+            analyzed_df["risk_level"]
+            .isin(
+                ["HIGH", "CRITICAL"]
+            )
+        ]
+        .sort_values(
+            "anomaly_score",
+            ascending=False
         )
-    ].sort_values(
-        "anomaly_score",
-        ascending=False
     )
-
 
     st.markdown(
         """
-        <div class="section-card">
+        <div class="card">
 
-        <div class="section-title">
-        🚨 High-Risk Financial Records
-        </div>
+            <div class="card-title">
+                🚨 High-Risk Records
+            </div>
 
-        <div class="section-description">
-        Records with the strongest anomaly signals.
-        </div>
+            <div class="card-description">
+                Transactions requiring the highest
+                level of human review.
+            </div>
 
         </div>
         """,
         unsafe_allow_html=True
     )
 
-
     if len(high_risk) > 0:
 
         st.warning(
             f"{len(high_risk)} high/critical "
-            "risk record(s) detected."
+            "record(s) detected."
         )
 
         st.dataframe(
@@ -1092,55 +1151,336 @@ def display_dashboard(df, dataset_name):
             "No high-risk financial records detected."
         )
 
-
-    # =====================================================
-    # EXPORT
-    # =====================================================
+    # -----------------------------------------------------
+    # DOWNLOAD
+    # -----------------------------------------------------
 
     st.markdown(
         """
-        <div class="section-card">
+        <div class="card">
 
-        <div class="section-title">
-        📥 Export Analysis
-        </div>
+            <div class="card-title">
+                📥 Export Analysis
+            </div>
 
-        <div class="section-description">
-        Download the processed dataset for further analysis.
-        </div>
+            <div class="card-description">
+                Download the processed financial data.
+            </div>
 
         </div>
         """,
         unsafe_allow_html=True
     )
 
-
     csv_data = analyzed_df.to_csv(
         index=False
     )
 
-
     st.download_button(
-        label="⬇️ Download Processed CSV",
+        "⬇️ Download Processed CSV",
         data=csv_data,
-        file_name="LedgerLens_Processed_Data.csv",
-        mime="text/csv",
-        use_container_width=False
+        file_name=(
+            "LedgerLens_Processed_Data.csv"
+        ),
+        mime="text/csv"
     )
+
+    return analyzed_df
 
 
 # =========================================================
-# DATA UPLOAD SECTION
+# TRANSACTION EXPLORER
+# =========================================================
+
+def transaction_explorer(df):
+
+    analyzed_df, error = (
+        analyze_financial_data(df)
+    )
+
+    if error:
+
+        st.error(error)
+        return
+
+    st.header(
+        "🔎 Transaction Explorer"
+    )
+
+    st.write(
+        "Select an individual financial record "
+        "to examine it separately."
+    )
+
+    # -----------------------------------------------------
+    # SEARCH
+    # -----------------------------------------------------
+
+    search_text = st.text_input(
+        "🔍 Search transaction",
+        placeholder=(
+            "Search transaction ID, "
+            "customer ID, order ID..."
+        )
+    )
+
+    filtered_df = analyzed_df.copy()
+
+    if search_text:
+
+        mask = (
+            filtered_df
+            .astype(str)
+            .apply(
+                lambda row:
+                row.str.contains(
+                    search_text,
+                    case=False,
+                    na=False
+                ).any(),
+                axis=1
+            )
+        )
+
+        filtered_df = (
+            filtered_df[mask]
+        )
+
+    if len(filtered_df) == 0:
+
+        st.warning(
+            "No matching transaction found."
+        )
+
+        return
+
+    # -----------------------------------------------------
+    # SELECT RECORD
+    # -----------------------------------------------------
+
+    display_options = []
+
+    for index, row in filtered_df.iterrows():
+
+        transaction_id = None
+
+        for column in [
+            "transaction_id",
+            "payment_id",
+            "order_id",
+            "refund_id",
+            "settlement_id"
+        ]:
+
+            if column in row.index:
+
+                transaction_id = (
+                    str(row[column])
+                )
+
+                break
+
+        if transaction_id is None:
+
+            transaction_id = (
+                f"Record {index}"
+            )
+
+        display_options.append(
+            (index, transaction_id)
+        )
+
+    selected_label = st.selectbox(
+        "Select a financial record",
+        [
+            label
+            for _, label
+            in display_options
+        ]
+    )
+
+    selected_index = next(
+        index
+        for index, label
+        in display_options
+        if label == selected_label
+    )
+
+    selected = analyzed_df.loc[
+        selected_index
+    ]
+
+    st.divider()
+
+    # -----------------------------------------------------
+    # RISK HEADER
+    # -----------------------------------------------------
+
+    risk = selected[
+        "risk_level"
+    ]
+
+    score = selected[
+        "anomaly_score"
+    ]
+
+    if risk == "CRITICAL":
+
+        st.error(
+            f"🔴 CRITICAL RISK • Score: {score:.2f}"
+        )
+
+    elif risk == "HIGH":
+
+        st.warning(
+            f"🟠 HIGH RISK • Score: {score:.2f}"
+        )
+
+    elif risk == "MEDIUM":
+
+        st.warning(
+            f"🟡 MEDIUM RISK • Score: {score:.2f}"
+        )
+
+    else:
+
+        st.success(
+            f"🟢 LOW RISK • Score: {score:.2f}"
+        )
+
+    # -----------------------------------------------------
+    # RECORD DETAILS
+    # -----------------------------------------------------
+
+    st.subheader(
+        "📄 Record Details"
+    )
+
+    details = pd.DataFrame(
+        {
+            "Field":
+                selected.index,
+
+            "Value":
+                [
+                    str(value)
+                    for value
+                    in selected.values
+                ]
+        }
+    )
+
+    st.dataframe(
+        details,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # -----------------------------------------------------
+    # AI INVESTIGATION
+    # -----------------------------------------------------
+
+    st.subheader(
+        "🤖 AI Investigation"
+    )
+
+    if not gemini_available:
+
+        st.info(
+            "Gemini AI is not configured. "
+            "Add GEMINI_API_KEY to Streamlit Secrets "
+            "to enable AI investigation."
+        )
+
+        return
+
+    if st.button(
+        "🔎 Investigate This Record",
+        use_container_width=False
+    ):
+
+        evidence = "\n".join(
+            [
+                f"{column}: {value}"
+                for column, value
+                in selected.items()
+            ]
+        )
+
+        prompt = f"""
+You are LedgerLens, an AI financial investigation assistant.
+
+Analyze ONLY the financial record below.
+
+Rules:
+
+1. Identify suspicious or unusual activity.
+2. Explain the evidence.
+3. Mention financial impact only when supported.
+4. Do not invent information.
+5. Clearly state when evidence is insufficient.
+6. Do not authorize or execute transactions.
+7. Recommendations are for human review only.
+8. Be concise and professional.
+
+Return exactly:
+
+Finding:
+Evidence:
+Financial Impact:
+Possible Cause:
+Recommendation:
+Confidence:
+
+FINANCIAL RECORD:
+
+{evidence}
+"""
+
+        with st.spinner(
+            "AI is investigating this record..."
+        ):
+
+            try:
+
+                response = (
+                    client.models.generate_content(
+                        model="gemini-3.5-flash",
+                        contents=prompt
+                    )
+                )
+
+                st.success(
+                    "Investigation completed."
+                )
+
+                st.text_area(
+                    "AI Investigation Report",
+                    response.text,
+                    height=450
+                )
+
+            except Exception as e:
+
+                st.error(
+                    f"AI investigation failed: {e}"
+                )
+
+
+# =========================================================
+# DATA UPLOAD PAGE
 # =========================================================
 
 if page == "📂 Data Upload":
 
-    st.header("📂 Upload Financial Data")
+    st.header(
+        "📂 Upload Financial Data"
+    )
 
     st.write(
-        "Upload one or more CSV or PDF financial files. "
-        "LedgerLens automatically identifies the dataset type "
-        "and generates the appropriate financial analysis."
+        "Upload your financial CSV or PDF files. "
+        "LedgerLens automatically processes the "
+        "financial data and identifies its type."
     )
 
     uploaded_files = st.file_uploader(
@@ -1149,13 +1489,18 @@ if page == "📂 Data Upload":
         accept_multiple_files=True
     )
 
+    if not uploaded_files:
 
-    if uploaded_files:
-
-        st.success(
-            f"{len(uploaded_files)} file(s) uploaded successfully."
+        st.info(
+            "Upload one or more financial files "
+            "to begin analysis."
         )
 
+    else:
+
+        st.success(
+            f"{len(uploaded_files)} file(s) uploaded."
+        )
 
         for uploaded_file in uploaded_files:
 
@@ -1164,7 +1509,6 @@ if page == "📂 Data Upload":
             file_name = (
                 uploaded_file.name.lower()
             )
-
 
             # =================================================
             # CSV
@@ -1178,35 +1522,60 @@ if page == "📂 Data Upload":
                         uploaded_file
                     )
 
+                    df = normalize_columns(
+                        df
+                    )
+
                     dataset_type = (
-                        detect_dataset_type(df)
+                        detect_dataset_type(
+                            df
+                        )
                     )
 
-                    st.success(
-                        f"Detected dataset: {dataset_type}"
+                    analyzed_df, error = (
+                        analyze_financial_data(
+                            df
+                        )
                     )
 
-                    with st.expander(
-                        f"📄 {uploaded_file.name}",
-                        expanded=True
-                    ):
+                    if error:
 
-                        st.caption(
-                            f"Rows: {len(df)} | "
-                            f"Columns: {len(df.columns)}"
+                        st.error(error)
+
+                    else:
+
+                        st.success(
+                            f"Detected dataset: "
+                            f"{dataset_type}"
                         )
 
-                        display_dashboard(
-                            df,
-                            dataset_type
-                        )
+                        st.session_state.processed_files[
+                            uploaded_file.name
+                        ] = {
+                            "data": analyzed_df,
+                            "type": dataset_type
+                        }
+
+                        with st.expander(
+                            f"📄 {uploaded_file.name}",
+                            expanded=True
+                        ):
+
+                            st.caption(
+                                f"Rows: {len(df)} | "
+                                f"Columns: {len(df.columns)}"
+                            )
+
+                            display_dashboard(
+                                df,
+                                dataset_type
+                            )
 
                 except Exception as e:
 
                     st.error(
                         f"Error processing CSV: {e}"
                     )
-
 
             # =================================================
             # PDF
@@ -1222,7 +1591,6 @@ if page == "📂 Data Upload":
                         )
                     )
 
-
                     if not extracted_text.strip():
 
                         st.warning(
@@ -1232,27 +1600,24 @@ if page == "📂 Data Upload":
 
                         continue
 
-
                     st.success(
                         "PDF text extracted successfully."
                     )
 
+                    pdf_df = (
+                        pdf_text_to_dataframe(
+                            extracted_text
+                        )
+                    )
 
                     with st.expander(
                         f"📄 {uploaded_file.name}",
                         expanded=True
                     ):
 
-                        pdf_df = (
-                            pdf_text_to_dataframe(
-                                extracted_text
-                            )
-                        )
-
-
-                        # =====================================
-                        # STRUCTURED TABLE FOUND
-                        # =====================================
+                        # -----------------------------------------
+                        # TABLE FOUND
+                        # -----------------------------------------
 
                         if pdf_df is not None:
 
@@ -1266,32 +1631,40 @@ if page == "📂 Data Upload":
                                 )
                             )
 
-
                             st.success(
                                 "Structured financial table detected."
                             )
 
-
                             st.subheader(
                                 "📊 Extracted Financial Table"
                             )
-
 
                             st.dataframe(
                                 pdf_df,
                                 use_container_width=True
                             )
 
-
-                            # Generate dashboard
-
-                            display_dashboard(
-                                pdf_df,
-                                dataset_type
+                            st.subheader(
+                                "📊 Generated Dashboard"
                             )
 
+                            analyzed_pdf_df = (
+                                display_dashboard(
+                                    pdf_df,
+                                    dataset_type
+                                )
+                            )
 
-                            # Convert to CSV
+                            if analyzed_pdf_df is not None:
+
+                                st.session_state.processed_files[
+                                    uploaded_file.name
+                                ] = {
+                                    "data":
+                                        analyzed_pdf_df,
+                                    "type":
+                                        dataset_type
+                                }
 
                             converted_csv = (
                                 pdf_df.to_csv(
@@ -1299,43 +1672,31 @@ if page == "📂 Data Upload":
                                 )
                             )
 
-
                             st.download_button(
-                                label=(
-                                    "⬇️ Download Converted CSV"
-                                ),
-
+                                "⬇️ Download Converted CSV",
                                 data=converted_csv,
-
                                 file_name=(
                                     uploaded_file.name
-                                    .replace(
-                                        ".pdf",
-                                        ""
-                                    )
+                                    .rsplit(".", 1)[0]
                                     + "_converted.csv"
                                 ),
-
                                 mime="text/csv"
                             )
 
-
-                        # =====================================
-                        # NO STRUCTURED TABLE
-                        # =====================================
+                        # -----------------------------------------
+                        # NO TABLE
+                        # -----------------------------------------
 
                         else:
 
                             st.info(
                                 "No structured financial table "
-                                "was detected in this PDF."
+                                "was detected."
                             )
-
 
                             st.subheader(
-                                "📑 Extracted Financial Report"
+                                "📑 Extracted PDF Content"
                             )
-
 
                             st.text_area(
                                 "PDF Content",
@@ -1343,69 +1704,36 @@ if page == "📂 Data Upload":
                                 height=350
                             )
 
-
-                            # =================================
-                            # AI INVESTIGATION
-                            # =================================
-
-                            st.subheader(
-                                "🤖 AI Financial Investigation"
+                            st.info(
+                                "AI investigation can still "
+                                "analyze this financial report."
                             )
 
+                            if gemini_available:
 
-                            if not gemini_available:
-
-                                st.error(
-                                    "Gemini API is not configured. "
-                                    "Add GEMINI_API_KEY to "
-                                    "Streamlit Secrets."
-                                )
-
-                            else:
-
-                                investigate = st.button(
-                                    "🔎 Investigate Financial Report",
+                                if st.button(
+                                    "🔎 Investigate PDF",
                                     key=(
-                                        "investigate_"
+                                        "pdf_ai_"
                                         + uploaded_file.name
                                     )
-                                )
+                                ):
 
-
-                                if investigate:
-
-                                    investigation_prompt = f"""
-
+                                    prompt = f"""
 You are LedgerLens, an AI financial investigation assistant.
 
-Analyze ONLY the financial evidence provided below.
+Analyze ONLY the financial evidence below.
 
-Rules:
+Identify suspicious activity, unusual financial patterns,
+possible financial impact, possible causes, recommendations,
+and confidence.
 
-1. Identify suspicious or abnormal financial activity.
-2. Explain the evidence clearly.
-3. Mention financial impact only when supported by the evidence.
-4. Do not invent missing information.
-5. If evidence is insufficient, explicitly say so.
-6. Do not authorize or execute financial transactions.
-7. Recommendations are for human review only.
-8. Be concise and professional.
-
-Return the investigation using exactly:
-
-Finding:
-Evidence:
-Financial Impact:
-Possible Cause:
-Recommendation:
-Confidence:
+Do not invent missing information.
 
 FINANCIAL EVIDENCE:
 
 {extracted_text}
-
 """
-
 
                                     with st.spinner(
                                         "AI is investigating..."
@@ -1416,29 +1744,19 @@ FINANCIAL EVIDENCE:
                                             response = (
                                                 client.models.generate_content(
                                                     model="gemini-3.5-flash",
-                                                    contents=(
-                                                        investigation_prompt
-                                                    )
+                                                    contents=prompt
                                                 )
                                             )
 
-
                                             st.success(
-                                                "Investigation completed!"
+                                                "Investigation completed."
                                             )
-
-
-                                            st.subheader(
-                                                "📋 AI Investigation Report"
-                                            )
-
 
                                             st.text_area(
-                                                "LedgerLens AI Report",
+                                                "AI Investigation Report",
                                                 response.text,
-                                                height=500
+                                                height=450
                                             )
-
 
                                         except Exception as e:
 
@@ -1446,6 +1764,13 @@ FINANCIAL EVIDENCE:
                                                 f"AI investigation failed: {e}"
                                             )
 
+                                   
+                                   
+                            else:
+
+                                st.warning(
+                                    "Gemini AI is not configured."
+                                )
 
                 except Exception as e:
 
@@ -1454,45 +1779,92 @@ FINANCIAL EVIDENCE:
                     )
 
 
-    else:
-
-        st.info(
-            "Upload your financial CSV/PDF files above "
-            "to generate the LedgerLens dashboard."
-        )
-
-
 # =========================================================
 # DASHBOARD PAGE
 # =========================================================
 
 elif page == "📊 Dashboard":
 
-    st.header("📊 LedgerLens Dashboard")
-
-    st.info(
-        "Upload a CSV or PDF from the "
-        "'Data Upload' section to generate "
-        "your financial risk dashboard."
+    st.header(
+        "📊 LedgerLens Dashboard"
     )
 
-    st.markdown(
-        """
-        ### How LedgerLens works
+    if not st.session_state.processed_files:
 
-        **1. Upload →** Your financial CSV/PDF
+        st.info(
+            "No financial dataset is currently loaded."
+        )
 
-        **2. Detect →** LedgerLens identifies the financial dataset
+        st.markdown(
+            """
+            ### How to begin
 
-        **3. Analyze →** Amounts and anomaly signals are calculated
+            1. Open **Data Upload**
+            2. Upload your CSV or PDF
+            3. LedgerLens identifies the financial data
+            4. Anomaly scores are calculated
+            5. Risk levels are assigned
+            6. Charts and dashboard are generated
+            7. Individual records can be investigated
+            """
+        )
 
-        **4. Classify →** Records receive LOW, MEDIUM, HIGH or CRITICAL risk
+    else:
 
-        **5. Investigate →** Gemini can explain suspicious financial evidence
+        dataset_names = list(
+            st.session_state.processed_files.keys()
+        )
 
-        **6. Export →** Download the processed financial dataset
-        """
-    )
+        selected_file = st.selectbox(
+            "Select dataset",
+            dataset_names
+        )
+
+        selected_data = (
+            st.session_state.processed_files[
+                selected_file
+            ]
+        )
+
+        display_dashboard(
+            selected_data["data"],
+            selected_data["type"]
+        )
+
+
+# =========================================================
+# TRANSACTION EXPLORER PAGE
+# =========================================================
+
+elif page == "🔎 Transaction Explorer":
+
+    if not st.session_state.processed_files:
+
+        st.info(
+            "Upload a financial dataset first."
+        )
+
+    else:
+
+        dataset_names = list(
+            st.session_state.processed_files.keys()
+        )
+
+        selected_file = st.selectbox(
+            "Select dataset",
+            dataset_names,
+            key="explorer_dataset"
+        )
+
+        selected_data = (
+            st.session_state.processed_files[
+                selected_file
+            ]
+        )
+
+        transaction_explorer(
+            selected_data["data"]
+        )
 
 
 # =========================================================
@@ -1501,7 +1873,9 @@ elif page == "📊 Dashboard":
 
 elif page == "🤖 AI Investigation":
 
-    st.header("🤖 AI Financial Investigation")
+    st.header(
+        "🤖 AI Financial Investigation"
+    )
 
     if gemini_available:
 
@@ -1510,10 +1884,38 @@ elif page == "🤖 AI Investigation":
         )
 
         st.write(
-            "Upload a financial PDF from the "
-            "'Data Upload' section to generate "
-            "an AI-powered investigation."
+            "For the strongest investigation experience, "
+            "open Transaction Explorer and investigate "
+            "an individual record."
         )
+
+        if st.session_state.processed_files:
+
+            dataset_names = list(
+                st.session_state.processed_files.keys()
+            )
+
+            selected_file = st.selectbox(
+                "Select dataset",
+                dataset_names,
+                key="ai_dataset"
+            )
+
+            selected_data = (
+                st.session_state.processed_files[
+                    selected_file
+                ]
+            )
+
+            transaction_explorer(
+                selected_data["data"]
+            )
+
+        else:
+
+            st.info(
+                "Upload financial data first."
+            )
 
     else:
 
@@ -1535,6 +1937,8 @@ st.markdown(
     <div class="footer">
         LedgerLens • AI Finance Controller •
         Financial Risk Intelligence Platform
+        <br>
+        Automated analysis • Risk detection • AI investigation
     </div>
     """,
     unsafe_allow_html=True
