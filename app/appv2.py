@@ -59,20 +59,18 @@ if "selected_transaction" not in st.session_state:
 with st.sidebar:
 
     st.title("💰 LedgerLens")
-
-    st.caption(
-        "AI Finance Controller"
-    )
+    st.caption("AI Finance Controller")
 
     st.divider()
 
-    st.subheader("Navigation")
+    st.subheader("OVERVIEW")
 
     page = st.radio(
-        "Go to",
+        "Navigation",
         [
             "📊 Dashboard",
             "📂 Data Upload",
+            "📈 Risk Analytics",
             "🔎 Transaction Explorer",
             "🤖 AI Investigation"
         ],
@@ -81,60 +79,39 @@ with st.sidebar:
 
     st.divider()
 
-    st.subheader("System Status")
+    st.subheader("AI ENGINE")
 
     if gemini_available:
-        st.success(
-            "🟢 Gemini AI Connected"
-        )
+        st.success("🟢 Gemini AI Connected")
     else:
-        st.warning(
-            "🟡 Gemini AI Not Configured"
-        )
-
-    with st.container(border=True):
-
-        st.markdown("### ⚙️ LedgerLens Engine")
-
-        st.caption(
-            "Financial data processing"
-        )
-
-        st.caption(
-            "Anomaly detection"
-        )
-
-        st.caption(
-            "Risk classification"
-        )
-
-        st.caption(
-            "Transaction investigation"
-        )
-
-        st.caption(
-            "AI explanations"
-        )
+        st.warning("🟡 Gemini AI Not Configured")
 
     st.divider()
 
-    st.subheader("Capabilities")
+    st.subheader("RISK INTELLIGENCE")
 
-    st.caption("📊 Financial risk dashboard")
-    st.caption("🚨 High-risk detection")
-    st.caption("🔎 Transaction investigation")
-    st.caption("🤖 AI-powered explanations")
-    st.caption("📄 PDF financial extraction")
-    st.caption("📥 CSV export")
+    st.caption("✓ Whole Dataset Risk Detection")
+    st.caption("✓ Anomaly Detection")
+    st.caption("✓ High / Critical Identification")
+    st.caption("✓ Risk Distribution")
+    st.caption("✓ Transaction Investigation")
+    st.caption("✓ AI Financial Explanation")
 
     st.divider()
 
-    st.caption(
-        "LedgerLens v2.0"
-    )
+    st.subheader("DATA PIPELINE")
+
+    st.caption("📄 CSV & PDF ingestion")
+    st.caption("🔄 Automatic dataset detection")
+    st.caption("📊 Financial analytics")
+    st.caption("📥 Processed CSV export")
+
+    st.divider()
+
+    st.caption("LedgerLens v2.0")
+    st.caption("Financial Risk Intelligence Platform")
 
 
-# =========================================================
 # HERO SECTION
 # =========================================================
 
@@ -1233,6 +1210,112 @@ FINANCIAL RECORD:
 
 
 # =========================================================
+# WHOLE DATASET AI INVESTIGATION
+# =========================================================
+
+def dataset_ai_investigation(df, dataset_name="Financial Data"):
+
+    if not gemini_available:
+        st.warning(
+            "Gemini AI is not configured. Add GEMINI_API_KEY "
+            "to Streamlit Secrets."
+        )
+        return
+
+    analyzed_df, error = analyze_financial_data(df)
+
+    if error:
+        st.error(error)
+        return
+
+    amount_column = find_amount_column(analyzed_df)
+
+    total_records = len(analyzed_df)
+    critical = int((analyzed_df["risk_level"] == "CRITICAL").sum())
+    high = int((analyzed_df["risk_level"] == "HIGH").sum())
+    medium = int((analyzed_df["risk_level"] == "MEDIUM").sum())
+    low = int((analyzed_df["risk_level"] == "LOW").sum())
+
+    total_amount = float(analyzed_df[amount_column].sum()) if amount_column else 0.0
+    average_amount = float(analyzed_df[amount_column].mean()) if amount_column else 0.0
+
+    # Send a compact statistical summary to the model rather than the entire raw dataset.
+    risk_summary = analyzed_df["risk_level"].value_counts().to_dict()
+
+    high_risk = analyzed_df[
+        analyzed_df["risk_level"].isin(["HIGH", "CRITICAL"])
+    ].sort_values("anomaly_score", ascending=False).head(10)
+
+    top_records = high_risk.to_dict(orient="records")
+
+    prompt = f"""
+You are LedgerLens, an AI financial risk controller.
+
+Analyze the WHOLE DATASET using only the supplied evidence.
+This is a portfolio-level investigation, not a single transaction investigation.
+
+Dataset: {dataset_name}
+Total records: {total_records}
+Total financial amount: {total_amount:.2f}
+Average amount: {average_amount:.2f}
+Risk distribution: {risk_summary}
+Critical records: {critical}
+High-risk records: {high}
+Medium-risk records: {medium}
+Low-risk records: {low}
+
+Top suspicious records identified by the anomaly engine:
+{top_records}
+
+Return exactly these sections:
+
+Overall Finding:
+Risk Assessment:
+Key Evidence:
+Financial Impact:
+Major Patterns:
+Priority Review Areas:
+Recommendation:
+Confidence:
+
+Rules:
+1. Do not invent missing information.
+2. Use only the supplied dataset statistics and records.
+3. Distinguish detected anomalies from confirmed fraud.
+4. Recommendations are for human review only.
+5. Do not authorize or execute financial transactions.
+6. Keep the report concise and professional.
+"""
+
+    if st.button(
+        "🤖 Run Whole Dataset AI Investigation",
+        type="primary",
+        key="whole_dataset_ai"
+    ):
+
+        with st.spinner("LedgerLens AI is analyzing the whole dataset..."):
+
+            try:
+                response = client.models.generate_content(
+                    model="gemini-3.5-flash",
+                    contents=prompt
+                )
+
+                st.success("Whole-dataset investigation completed.")
+
+                with st.container(border=True):
+                    st.subheader("📋 Dataset Investigation Report")
+                    st.text_area(
+                        "LedgerLens AI Report",
+                        response.text,
+                        height=520,
+                        key="whole_dataset_report"
+                    )
+
+            except Exception as e:
+                st.error(f"AI investigation failed: {e}")
+
+
 # DATA UPLOAD PAGE
 # =========================================================
 
@@ -1638,6 +1721,36 @@ elif page == "📊 Dashboard":
 
 
 # =========================================================
+# RISK ANALYTICS PAGE
+# =========================================================
+
+elif page == "📈 Risk Analytics":
+
+    st.header("📈 Risk Analytics")
+
+    st.caption(
+        "Whole-dataset financial risk intelligence and anomaly analysis."
+    )
+
+    if not st.session_state.processed_files:
+        st.info("Upload financial data first.")
+    else:
+        dataset_names = list(st.session_state.processed_files.keys())
+
+        selected_file = st.selectbox(
+            "Select dataset",
+            dataset_names,
+            key="risk_dataset"
+        )
+
+        selected_data = st.session_state.processed_files[selected_file]
+
+        display_dashboard(
+            selected_data["data"],
+            selected_data["type"]
+        )
+
+
 # TRANSACTION EXPLORER PAGE
 # =========================================================
 
@@ -1678,58 +1791,54 @@ elif page == "🔎 Transaction Explorer":
 
 elif page == "🤖 AI Investigation":
 
-    st.header(
-        "🤖 AI Financial Investigation"
+    st.header("🤖 AI Financial Investigation")
+
+    st.caption(
+        "Investigate the entire dataset first, then drill down into individual records."
     )
 
-    if gemini_available:
+    if not st.session_state.processed_files:
+        st.info("Upload financial data first.")
 
-        st.success(
-            "🟢 Gemini AI is connected and ready."
+    elif not gemini_available:
+        st.error("Gemini AI is not configured.")
+        st.write("Add GEMINI_API_KEY to Streamlit Secrets.")
+
+    else:
+
+        dataset_names = list(st.session_state.processed_files.keys())
+
+        selected_file = st.selectbox(
+            "Select dataset",
+            dataset_names,
+            key="ai_dataset"
         )
 
-        st.write(
-            "Select a dataset and investigate an "
-            "individual financial record using LedgerLens AI."
-        )
+        selected_data = st.session_state.processed_files[selected_file]
 
-        if st.session_state.processed_files:
-
-            dataset_names = list(
-                st.session_state.processed_files.keys()
+        with st.container(border=True):
+            st.subheader("🌐 Whole Dataset Investigation")
+            st.caption(
+                "AI reviews the overall financial risk profile, anomaly pattern "
+                "and highest-priority records."
             )
 
-            selected_file = st.selectbox(
-                "Select dataset",
-                dataset_names,
-                key="ai_dataset"
+            dataset_ai_investigation(
+                selected_data["data"],
+                selected_data["type"]
             )
 
-            selected_data = (
-                st.session_state.processed_files[
-                    selected_file
-                ]
+        st.write("")
+
+        with st.container(border=True):
+            st.subheader("🔎 Individual Transaction Investigation")
+            st.caption(
+                "Select a single record for evidence-based investigation."
             )
 
             transaction_explorer(
                 selected_data["data"]
             )
-
-        else:
-
-            st.info(
-                "Upload financial data first."
-            )
-
-    else:
-
-        st.error(
-            "Gemini AI is not configured."
-        )
-
-        st.write(
-            "Add GEMINI_API_KEY to Streamlit Secrets."
-        )
 
 
 # =========================================================
